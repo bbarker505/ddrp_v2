@@ -1,6 +1,7 @@
 #!/usr/bin/Rscript
 #.libPaths("/usr/lib64/R/library/")
-# Last modified on 12/11/19: renamed file (and func file); earlier 
+# Last modified on 1/3/20: fixed bug that was deleting output raster files
+# One 12/16/19: renamed file names and uploaded to GitHub
 # On 11/26/19: fixed bug w/ loading 30 yr climate normals
 # resolve for next DDRP version
 
@@ -125,22 +126,22 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "STB" # Default species to use
+  spp           <- "SUNP" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
   start_year    <- "1990_daily_30yr" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap year be kept?
-  region_param  <- "CA" # Default REGION to use
+  region_param  <- "CONUS" # Default REGION to use
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
-  pems          <- 0 # Turn on/off pest event maps
+  pems          <- 1 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 1 # Make maps for egg stage
   mapL          <- 1 # Make maps for larval stage
   mapP          <- 1 # Make maps for pupal stage
-  out_dir       <- "STB_test" # Output dir
+  out_dir       <- "SUNP_test" # Output dir
   out_option    <- 1 # Output option category
-  ncohort       <- 1 # Number of cohorts to approximate end of OW stage
+  ncohort       <- 7 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
 }
 
@@ -732,11 +733,15 @@ if (region_param %in% c("CONUS", "EAST")) {
   cat("\nDeleting tiles for", region_param, "\n")
   for (t in type_list) {
     # Should only be a single merged file for these types
+    # Remove the "_all" from the name of the file - this isn't needed
     if (grepl("Stress_Excl|Stress_Units|DDtotal", t)) {
-      fls <- list.files(pattern = glob2rx(paste0("*", t, "_*all*tif$")))
-      if (length(fls == 1)) {
+      fl <- list.files(pattern = glob2rx(paste0("*", t, "_*all*tif$")))
+      if (length(fl == 1)) {
         unlink(list.files(pattern = glob2rx(paste0("*", t, "_*tile*tif$"))))
+        file.rename(from = fl, to = sub(pattern = "_cohort1_all", 
+                                        replacement = "", fl))
       }
+     
       # For other types, the number of merged files should equal the number 
       # of cohorts. The exception is if OW stage DD distro parameters for 
       # cohorts results in some cohorts not making DD cutoffs for PEMs - 
@@ -824,12 +829,6 @@ mytheme <- theme(legend.text = element_text(size = rel(1)),
 
 ### * DDtotal and climate stress ####
 
-if (region_param %in% c("CONUS", "EAST")) {
-  DDtotal_brick <- brick("DDtotal_cohort1_all.tif")
-} else {
-  DDtotal_brick <- brick("DDtotal_cohort1.tif")
-}
-
 if (exclusions_stressunits) {
   cat("\n", str_wrap("### SUMMARY MAPS: DDTOTAL, CLIMATE STRESS EXCL., AND 
                      CLIMATE STRESS UNITS ###", width = 80), sep = "", 
@@ -860,36 +859,32 @@ stress_results <- foreach(dat = dats_list, .packages = pkgs,
       # get position (layer) of date in raster brick
       lyr <- which(dats2 == d)
       # make the plots
+      DDtotal_brick <- brick("DDtotal.tif")
       PlotMap(DDtotal_brick[[lyr]],d, "Degree day (DD) accumulation", 
               "Degree Days", "Misc_output/DDtotal")
       
       if (exclusions_stressunits) {
         # Bring in climate stress bricks for each cohort
         # Chill stress unit accumulation
-        chillunitsCUM_patrn <- glob2rx("*Chill_Stress_Units*1*.tif$")
-        chillunitsCUM_brick <- brick(list.files(pattern = chillunitsCUM_patrn))
+        chillunitsCUM_brick <- brick("Chill_Stress_Units.tif")
         PlotMap_stress(chillunitsCUM_brick[[lyr]], d, chillstress_units_max1,
                        chillstress_units_max2, "Chill stress units", 
                        "Chill Stress Units", "Misc_output/Chill_Stress_Units")
         # Chill stress exlusions (-1 = moderate; -2 = severe)
-        chillEXCL_patrn <- glob2rx("*Chill_Stress_Excl*1*.tif$")
-        chillEXCL_brick <- brick(list.files(pattern = chillEXCL_patrn))
+        chillEXCL_brick <- brick("Chill_Stress_Excl.tif")
         PlotMap(chillEXCL_brick[[lyr]], d,  "Chill stress exclusion", 
                 "Exclusion status", "Misc_output/Chill_Stress_Excl")
         # Heat unit accumulation
-        heatunitsCUM_patrn <- glob2rx("*Heat_Stress_Units*1*.tif$")
-        heatunitsCUM_brick <- brick(list.files(pattern = heatunitsCUM_patrn))          
+        heatunitsCUM_brick <- brick("Heat_Stress_Units.tif")
         PlotMap_stress(heatunitsCUM_brick[[lyr]], d, heatstress_units_max1,
                        heatstress_units_max2, "Heat stress units", 
                        "Heat Stress Units", "Misc_output/Heat_Stress_Units")
         # Heat stress exclusions (-1 = moderate; -2 = severe)
-        heatEXCL_patrn <- glob2rx("*Heat_Stress_Excl*1*.tif$")
-        heatEXCL_brick <- brick(list.files(pattern = heatEXCL_patrn))
+        heatEXCL_brick <- brick("Heat_Stress_Excl.tif")
         PlotMap(heatEXCL_brick[[lyr]], d,  "Heat stress exclusion", 
                 "Exclusion status", "Misc_output/Heat_Stress_Excl")
         # All stress exclusions (chill stress + heat stress exclusions)
-        AllEXCL_patrn <- glob2rx("*All_Stress_Excl*1*.tif$")
-        AllEXCL_brick <- brick(list.files(pattern = AllEXCL_patrn))
+        AllEXCL_brick <- brick("All_Stress_Excl.tif")
         PlotMap(AllEXCL_brick[[lyr]], d,  "All stress exclusion", 
                 "Exclusion status", "All_Stress_Excl")
       }
@@ -1937,12 +1932,9 @@ cat("\nDone w/ final analyses and map production\n\n",
     " min\n\n", "Deleting, renaming, and moving some remaining files\n\n", 
     sep = "")
 
-# Delete all output files from daily loop now that they have been processed
-if (region_param %in% c("CONUS", "EAST")) {
-  unlink(list.files(pattern = glob2rx(paste0("*1_all.tif$"))))
-} else {
-  unlink(list.files(pattern = glob2rx(paste0("*_cohort.tif$"))))
-}
+# Delete any remaining output files from daily loop now that all have been 
+# processed
+unlink(list.files(pattern = glob2rx(paste0("*_cohort.tif$"))))
 
 # Rename files for last day of year
 last_dat_fls <- list.files(pattern = glob2rx(paste0("*", last_date, "*.png$")))

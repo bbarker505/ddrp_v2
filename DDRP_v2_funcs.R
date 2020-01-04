@@ -1,5 +1,6 @@
 # Functions used for DDRP_v2 R----
-# Last modified on 12/9/19: had to fix code in PEM plotting - error for some spp
+# Last modified on 1/3/20: changed naming of clim. suit. output files
+# Modified on 12/9/19: had to fix code in PEM plotting - error for some spp
 # Issues to resolve: boundary of CONUS doesn't line up completely with raster
 # May not be an issue, but the color key in PEMs is really convoluted - should
 # look into simplifying the code if possible.
@@ -1825,7 +1826,7 @@ PlotMap_stress <- function(r, d, max1, max2, titl, lgd, outfl) {
 # stress (i.e., where Lifestage overlaps with Excl1)
 Rast_Subs_Excl1 <- function(brk) {
   # Get all climate stress exclusion data
-  allEXCL_patrn <- glob2rx("*All_Stress_Excl*1*.tif$")
+  allEXCL_patrn <- glob2rx("*All_Stress_Excl*.tif$")
   allEXCL_brk <- brick(list.files(pattern = allEXCL_patrn))
   # If PEM, then only take the last layer of allEXCL_brk (last date)
   if (deparse(substitute(brk)) == "PEM") {
@@ -1846,7 +1847,7 @@ Rast_Subs_Excl1 <- function(brk) {
 # stress (i.e., where Lifestage overlaps with Excl2)
 Rast_Subs_Excl2 <- function(brk) {
   # Get all climate stress exclusion data
-  allEXCL_patrn <- glob2rx("*All_Stress_Excl*1*.tif$")
+  allEXCL_patrn <- glob2rx("*All_Stress_Excl*.tif$")
   allEXCL_brk <- brick(list.files(pattern = allEXCL_patrn))
   # If PEM, then only take the last layer (last date)
   # If PEM, then only take the last layer of allEXCL_brk (last date)
