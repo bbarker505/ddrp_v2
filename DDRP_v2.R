@@ -1,11 +1,14 @@
 #!/usr/bin/Rscript
 #.libPaths("/usr/lib64/R/library/")
-# Last modified on 1/3/20: fixed bug that was deleting output raster files
-# One 12/16/19: renamed file names and uploaded to GitHub
+# On 1/23/20: finished fixing bugs w/ closing connections for clusters, and
+# resolving issues with memory
+# On 1/17/20: inc. no. of gens for mapping; increase memory w/ FORK etc.
+# On 1/3/20: fixed bug that was deleting output raster files
+# On 12/16/19: renamed file names and uploaded to GitHub
 # On 11/26/19: fixed bug w/ loading 30 yr climate normals
 # resolve for next DDRP version
 
-# DDRP cohorots v. 1
+# DDRP v2
 options(echo = FALSE)
 
 # Load the required packages
@@ -23,10 +26,6 @@ source("/usr/local/dds/DDRP_B1/DDRP_v2_funcs.R")
 # Requires these libraries: "mapdata" and "maptools"
 cat("\n\nDownloading US states feature\n")
 states <- map_data("state")
-# coordinates(states) <- ~long + lat
-# proj4string(states) <- CRS("+proj=longlat +datum=NAD83")
-# states <- spTransform(states, CRS(proj4string(r)))
-# states <- data.frame(states)
 
 # Start timing the model run
 tic("Total run time")
@@ -38,8 +37,8 @@ tic("Total run time")
 ########  Tyson Wepprich for APHIS PPQ and IPM needs ###########################
 ################################################################################
 
-# DDRP cohorts vs. 1 is an update from the previous version of DDRP 
-# (v24proDDRP_B1.R) that includes:
+# DDRP v2 is an update from the previous version of DDRP 
+# (v24proDDRP_B1.R = DDRP_v1) that includes:
 # 1. The ability to accomodate multiple population cohorts, in which a user-
 #    defined number of cohorts emerges from the overwintering stage at different
 #    times, such that a population in any given area could contain a mix of
@@ -126,20 +125,20 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "SUNP" # Default species to use
+  spp           <- "FCM2" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
-  start_year    <- "1990_daily_30yr" # Year to use
+  start_year    <- "2019" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap year be kept?
-  region_param  <- "CONUS" # Default REGION to use
+  region_param  <- "CA" # Default REGION to use
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
-  pems          <- 1 # Turn on/off pest event maps
+  pems          <- 0 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
-  mapE          <- 1 # Make maps for egg stage
-  mapL          <- 1 # Make maps for larval stage
-  mapP          <- 1 # Make maps for pupal stage
-  out_dir       <- "SUNP_test" # Output dir
+  mapE          <- 0 # Make maps for egg stage
+  mapL          <- 0 # Make maps for larval stage
+  mapP          <- 0 # Make maps for pupal stage
+  out_dir       <- "FCM2_Southeast" # Output dir
   out_option    <- 1 # Output option category
   ncohort       <- 7 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
@@ -187,7 +186,7 @@ Model_rlogging <- sprintf("%s%s", "./", "/Logs_metadata/Model_rlogging.txt")
 
 # Make header for logging file
 cat(paste0(rep("#", 36), collapse = ""), "\n", 
-    "### Log file for DDRP cohorts v1 ###\n", 
+    "### Log file for DDRP v2 ###\n", 
     paste0(rep("#", 36), collapse = ""), "\n\n", sep = "", 
     file = Model_rlogging)
 
@@ -199,8 +198,8 @@ cat(str_wrap(paste0("EXISTING OUTPUT DIR: ", output_dir,
     file = Model_rlogging, append = TRUE)
 
 # Push out a message file with all R error messages
-#msg <- file(paste0("/home/httpd/html/CAPS/",out_dir, "/rmessages.txt"), 
-#open="wt")
+#msg <- file(paste0("/home/httpd/html/CAPS/", out_dir, "/Logs_metadata/
+# rmessages.txt"), #open="wt")
 msg <- file(paste0("/usr/local/dds/DDRP_B1/DDRP_results/", out_dir, 
                    "/Logs_metadata/rmessages.txt"), open = "wt")
 sink(msg, type = "message")
@@ -350,7 +349,7 @@ cat("\nMETADATA: creating metadata file for all inputs used in model\n")
 # Create the metadata file
 setwd(output_dir)
 metadata <- sprintf("%s%s", "./", "/Logs_metadata/metadata.txt")
-cat("### Metadata for DDRP cohorts v1 ###\n", file = metadata)
+cat("### Metadata for DDRP v2 ###\n", file = metadata)
 
 # Document species information
 cat("\n### Model Species Parameters ###\n Species Abbrev:", spp, 
@@ -526,7 +525,8 @@ crs(template) <- crs
 # The "RegCluster" function determines an appropriate # of cores depending on 
 # the "region_param" and "ncohort" parameters, so the server doesn't become
 # overloaded
-RegCluster(ncohort)
+
+RegCluster(10)
 
 if (region_param %in% c("CONUS", "EAST")) {
   # Split template (2 pieces per side)
@@ -538,9 +538,10 @@ if (region_param %in% c("CONUS", "EAST")) {
   # Name the 4 tiles (tile1, tile2, tile3, tile4)
   template <- mapply(function(n, t) {
     names(n) <- paste0("tile", t)
-    #values(n) <- 0
     return(n)
   }, n = tile_list, t = tile_n )
+  
+  rm(tile_list)
   
   # Crop temp files by each template tile
   cat("Cropping tmax and tmin tiles for", region_param, "\n", 
@@ -569,14 +570,16 @@ if (region_param %in% c("CONUS", "EAST")) {
                        .inorder = TRUE) %dopar% {
     m <- as.matrix(crop(raster(t), template))
   }
-  
+
   tmin_list <- foreach(t = tminfiles, .packages = "raster", 
                        .inorder = TRUE) %dopar% {
     m <- as.matrix(crop(raster(t), template))
   }
   
-  stopCluster(cl)
 }
+
+stopCluster(cl)
+rm(cl)
 
 cat("Done processing ", forecast_data, " data\n\nDAILY LOOP\n", sep = "",
     file = Model_rlogging, append = TRUE)
@@ -610,15 +613,22 @@ cat("Sampling every", sample_freq, "days between", first(dats), "and",
 cat("\nSampling every", sample_freq, "days between", first(dats), "and", 
     last(dats), "\n") 
 
-RegCluster(ncohort)
-
 # Run it! If there is an error the program will stop
+
 tryCatch(
   {
     # If the region is CONUS or EAST, then both cohorts and tiles will be run in
     # parallel. To avoid overloading the server, mc.cores = 4 (for the 4 tiles,
     # which keeps load < 12. The run-time is approx 1.5-2.5 minutes.
     if (region_param %in% c("CONUS", "EAST")) {
+      
+      # Run cohorts and tiles in parallel
+      if (ncohort < 5) {
+        RegCluster(ncohort * 4)
+      } else {
+        RegCluster(15)
+      }
+
       # Total number of nodes is mc.cores * 2 because use mclapply twice in loop
       for (c in cohort_chunks) {
         cat("Running daily loop for cohorts", as.character(c), "\n", 
@@ -634,7 +644,12 @@ tryCatch(
           }, mc.cores = mc.cores)
         }, mc.cores = mc.cores)  
       }
+      
+      stopCluster(cl)
+      rm(cl)
+      
     } else {
+      
       # If the region is not CONUS or EAST, then we don't need to run function 
       # for multiple tiles.
       for (c in cohort_chunks) {
@@ -642,21 +657,28 @@ tryCatch(
             file = Model_rlogging, append = TRUE)
         cat("\nRunning daily loop for cohorts", as.character(c), "\n")
         cohort_vec <- unname(unlist(c)) # change to an unnamed vector
+        # Only need to run cohorts in parallel
+        RegCluster(ncohort)
         foreach(cohort = cohort_vec, .packages = pkgs, 
                 .inorder = FALSE) %dopar% {
           DailyLoop(cohort, NA, template)
         }
         
+        stopCluster(cl)
+        rm(cl)
       }
     }
   },
+  
   error = function(e) {
-    cat("Error in Daily Loop - stopped run - check rmessages file\n", 
+    cat("Error in Daily Loop\n", 
         file = Model_rlogging, append = TRUE) 
-    cat("\nError in Daily Loop - stopped run - check rmessages file\n")
+    cat("\nError in Daily Loop\n")
 })
 
-stopCluster(cl)
+# Free up memory - objects no longer needed
+rm(Assign_extent, DailyLoop, template, tmaxfiles, tmax_list, tminfiles, 
+   tmin_list)
 
 # Document daily loop execution time
 loop_exectime <- toc(quiet = TRUE)
@@ -670,6 +692,7 @@ cat("\nDaily loop done (run time = ", round(loop_exectime, digits = 2), " min)",
 
 ## (7). PROCESS DAILY LOOP RESULTS -----
 setwd(output_dir)
+
 tic("Data processing run time") # Start timing for data processing
 
 # Create a directory ("Misc_output") to put secondary outfiles
@@ -697,30 +720,37 @@ if (region_param %in% c("CONUS", "EAST")) {
   # If system is overloaded then consider: 
   # 1) splitting up the cohorts list (as in the "type_list_split"); or 
   # 2) decreasing the number of splits in "type_list_split")
-  RegCluster(ncohort)
+  RegCluster(4)
   
   mrg_by_type <- foreach(type = type_list_split, .packages = pkgs, 
                          .inorder = FALSE) %dopar% {
     type_vec <- unname(unlist(type)) # Change to an unnamed vector
     for (t in type_vec) {
-      # If type is exclusion, stressunits, or ddtotal files, 
+      # If type is exclusion, stressunits, or ddtotal files,
       # then just do cohort 1; no other cohorts present
       if (grepl("Stress_Excl|Stress_Units|DDtotal", t)) {
         CombineMaps(brick_files, t, "1")
-        cat("Merged", t, "tiles for cohort 1\n", 
+        cat("Merged", t, "tiles for cohort 1\n",
             file = Model_rlogging, append = TRUE)
       # If another file type, then merge tiles for all cohorts
       } else {
-        MrgTiles <- foreach(c = cohorts, .packages = pkgs, 
-                            .inorder = TRUE) %dopar% {
-          CombineMaps(brick_files, t, c)
-          cat("Merged", t, "tiles for cohort", c, "\n", 
-              file = Model_rlogging, append = TRUE)
-        }
+        mclapply(cohorts, function(c) {
+            CombineMaps(brick_files, t, c)
+          }, mc.cores = mc.cores)
+        # MrgTiles <- foreach(c = cohorts, .packages = pkgs,
+        #                     .inorder = TRUE) %dopar% {
+        #   CombineMaps(brick_files, t, c)
+        #   cat("Merged", t, "tiles for cohort", c, "\n",
+        #       file = Model_rlogging, append = TRUE)
+        #}
+        #gc()
       } 
     }
   }
+  
   stopCluster(cl)
+  rm(cl)
+  
   cat("\nDone merging tiles\n", file = Model_rlogging, append = TRUE)
   cat("\nDone merging tiles\n")
 }
@@ -738,8 +768,6 @@ if (region_param %in% c("CONUS", "EAST")) {
       fl <- list.files(pattern = glob2rx(paste0("*", t, "_*all*tif$")))
       if (length(fl == 1)) {
         unlink(list.files(pattern = glob2rx(paste0("*", t, "_*tile*tif$"))))
-        file.rename(from = fl, to = sub(pattern = "_cohort1_all", 
-                                        replacement = "", fl))
       }
      
       # For other types, the number of merged files should equal the number 
@@ -840,58 +868,80 @@ if (exclusions_stressunits) {
   cat("\nSUMMARY MAPS: DDTOTAL\n")
 }
 
-# Split up the dates into chunks - this avoids overloading the server w/ 
-# running too many dates in parallel
-dats_list <- split(dats2, ceiling(1:length(dats2)/4))
+# First rename rasters (may need to modify code so don't need to do this)
+# Not necessary to have words "cohort1" and "all" in the file names
+fls <- list.files(pattern = glob2rx("*Stress_Excl|Stress_Units|DDtotal*tif$"))
+fl_rename <- lapply(fls, function(fl) {
+  if (region_param %in% c("CONUS", "EAST")) {
+    file.rename(from = fl, to = sub(pattern = "_cohort1_all", 
+                                    replacement = "", fl))
+  } else {
+    file.rename(from = fl, to = sub(pattern = "_cohort1", replacement = "", fl))
+  }
+})
+
+# Split up the dates into chunks (no chunks have single dates - this results in
+# warning messages. Splitting up the dates avoids overloading the server w/ 
+# running too many dates in parallel.
+dats_list <- split(dats2, ceiling(seq_along(dats2)/(length(dats2)/4)))
 last_date <- last(dats2)
 
 # For each date in a date chunk, plot and save summary maps for:
 # degree-day accumulation, chill stress unit accumulation, chill stress 
 # exclusion, heat stress unit accumulation, heat stress exclusion, and all 
 # stress exclusion
-RegCluster(ncohort)
+
+RegCluster(10)
 
 #for (dat in dats_list) {
-stress_results <- foreach(dat = dats_list, .packages = pkgs, 
+dd_stress_results <- foreach(dat = dats_list, .packages = pkgs, 
                           .inorder = TRUE) %dopar% {
-  dat_vec <- unname(unlist(dat)) # change to an unnamed vector
-    for (d in dat_vec) {
-      # get position (layer) of date in raster brick
+  dat_vec <- unname(unlist(dat)) # change to an unnamed date vector
+  # Plots results for two dates in the date vector in parallel
+  mclapply(dat_vec, function(d) {  
+  #for (d in dat_vec) {
+      # Get position (layer) of date in raster brick
       lyr <- which(dats2 == d)
-      # make the plots
-      DDtotal_brick <- brick("DDtotal.tif")
-      PlotMap(DDtotal_brick[[lyr]],d, "Degree day (DD) accumulation", 
-              "Degree Days", "Misc_output/DDtotal")
-      
+      # Make the plots
+      PlotMap(subset(brick("DDtotal.tif"), lyr), d, 
+              "Degree day (DD) accumulation", "Degree Days", 
+              "Misc_output/DDtotal")
+
       if (exclusions_stressunits) {
-        # Bring in climate stress bricks for each cohort
+        
         # Chill stress unit accumulation
-        chillunitsCUM_brick <- brick("Chill_Stress_Units.tif")
-        PlotMap_stress(chillunitsCUM_brick[[lyr]], d, chillstress_units_max1,
-                       chillstress_units_max2, "Chill stress units", 
-                       "Chill Stress Units", "Misc_output/Chill_Stress_Units")
+         PlotMap_stress(subset(brick("Chill_Stress_Units.tif"), lyr), d, 
+                       chillstress_units_max1, chillstress_units_max2, 
+                       "Chill stress units", "Chill Stress Units", 
+                       "Misc_output/Chill_Stress_Units")
+
         # Chill stress exlusions (-1 = moderate; -2 = severe)
-        chillEXCL_brick <- brick("Chill_Stress_Excl.tif")
-        PlotMap(chillEXCL_brick[[lyr]], d,  "Chill stress exclusion", 
-                "Exclusion status", "Misc_output/Chill_Stress_Excl")
+        PlotMap(subset(brick("Chill_Stress_Excl.tif"), lyr), d, 
+                "Chill stress exclusion", "Exclusion status", 
+                "Misc_output/Chill_Stress_Excl")
+
         # Heat unit accumulation
-        heatunitsCUM_brick <- brick("Heat_Stress_Units.tif")
-        PlotMap_stress(heatunitsCUM_brick[[lyr]], d, heatstress_units_max1,
-                       heatstress_units_max2, "Heat stress units", 
-                       "Heat Stress Units", "Misc_output/Heat_Stress_Units")
+        PlotMap_stress(subset(brick("Heat_Stress_Units.tif"), lyr), d, 
+                       heatstress_units_max1, heatstress_units_max2, 
+                       "Heat stress units", "Heat Stress Units", 
+                       "Misc_output/Heat_Stress_Units")
+
         # Heat stress exclusions (-1 = moderate; -2 = severe)
-        heatEXCL_brick <- brick("Heat_Stress_Excl.tif")
-        PlotMap(heatEXCL_brick[[lyr]], d,  "Heat stress exclusion", 
-                "Exclusion status", "Misc_output/Heat_Stress_Excl")
+        PlotMap(subset(brick("Heat_Stress_Excl.tif"), lyr), d, 
+                "Heat stress exclusion", "Exclusion status", 
+                "Misc_output/Heat_Stress_Excl")
+
         # All stress exclusions (chill stress + heat stress exclusions)
-        AllEXCL_brick <- brick("All_Stress_Excl.tif")
-        PlotMap(AllEXCL_brick[[lyr]], d,  "All stress exclusion", 
-                "Exclusion status", "All_Stress_Excl")
+        PlotMap(subset(brick("All_Stress_Excl.tif"), lyr), d, 
+                "All stress exclusion", "Exclusion status", "All_Stress_Excl")
+
       }
-    }
+    }, mc.cores = 4)
+  
 }
 
 stopCluster(cl)
+rm(cl)
 
 # Log file messages
 
@@ -972,9 +1022,10 @@ if (pems) {
   # Which PEM is for the OW stage?
   OW_pem <- paste0("PEM", tolower(substr(owstage, start = 2, stop = 2)), "0")
   
-  # Analyze the PEMs for each cohort in parallel, and export resulting rasters 
-  # and summary maps
-  RegCluster(ncohort)
+  # Analyze the PEMs for each cohort in parallel. Here ncores = 2 * PEMnumgens 
+  # (number of generations for which PEMs are generated). 
+  # Then export resulting rasters and generate summary maps
+  RegCluster(2 * PEMnumgens)
   
   pem_results <- foreach(type = pem_types, .packages = pkgs, 
                         .inorder = FALSE) %dopar% {
@@ -1019,37 +1070,40 @@ if (pems) {
         cat("\nWARNING: removed", names(pem_na), "layer because all values 
             were NA - check emergence parameters \n\n")
       }
-          
+      
       # Calc. avg. date of pest event across cohorts
       # Then save raster brick, and create and save summary maps
       avg_PEM <- calc(pem_stk, fun = function(x, na.rm= TRUE) { 
-        mean(x, na.rm = TRUE) }) # average in day of event among cohorts
+        mean(x, na.rm = TRUE) 
+        }) # average in day of event among cohorts
       names(avg_PEM) <- "Avg" # name layer for use below
       SaveRaster2(avg_PEM, paste("Avg", type, last_date, sep = "_"), 
                   "INT2U", paste("- Avg.", eventLabel))
       PlotMap(avg_PEM, last_date, paste("Avg.", eventLabel, sep = " "), 
               paste("Avg.", eventLabel, sep = " "), 
               paste("Avg", type, sep = "_"))
-          
+      
       # Calc. the earliest date of pest event across cohorts 
       # Then save raster brick, and create and save summary maps
-      min_PEM <- calc(pem_stk, fun = function(x, na.rm= TRUE) { min(x) })
+      min_PEM <- calc(pem_stk, fun = function(x, na.rm= TRUE) { 
+        min(x) 
+        })
       names(min_PEM) <- "Earliest" # name layer for use below
       SaveRaster2(min_PEM, paste("Earliest", type, last_date, sep = "_"), 
                   "INT2U", paste("- Earliest", eventLabel))
       PlotMap(min_PEM, last_date, paste("Earliest", eventLabel, sep = " "), 
               paste("Earliest", eventLabel, sep = " "), 
               paste("Earliest", type, sep = "_"))
-          
+      
       # If climate stress exclusions are specified, then take PEM results from 
       # above and substitute values where the species is under severe stress 
       # only with -1 (Excl1), and areas where the species is under both
       # moderate and severe stress with -1 and -2, respectively (Excl2)
       if (exclusions_stressunits) {
         PEM_list <- list(avg_PEM, min_PEM)
-        for (PEM in PEM_list) {
+        #for (PEM in PEM_list) {
+        mclapply(PEM_list, function(PEM) {
           nam <- names(PEM)
-          
           # Do calculations
           PEM_excl1 <- Rast_Subs_Excl1(PEM)[[1]] # Sev. stress only (Excl1) 
           PEM_excl2 <- Rast_Subs_Excl2(PEM)[[1]] # Sev. and mod. stress (Excl2) 
@@ -1065,15 +1119,20 @@ if (pems) {
           PlotMap(PEM_excl2, last_date, paste0(nam, " ", eventLabel, 
                   " w/ climate stress exclusion"), paste0(nam, " ", eventLabel), 
                   paste0(nam, "_", type, "Excl2"))
-          }
+         }, mc.cores = 4)
         }
       }
-  }
+    }
+  
   stopCluster(cl)
+  rm(cl)
+  
+  # Remove PEM objects to free up memory, and delete 
+  # PEM cohort rasters now that they have been processed
+  rm(pem_event_labels, pem_results)
+  unlink(list.files(pattern = glob2rx(paste0("*PEM*cohort*"))))
 }
 
-# Remove PEM cohort files - no longer needed
-unlink(list.files(pattern = glob2rx(paste0("*PEM*cohort*"))))
 
 # Log file messages
 if (pems & exclusions_stressunits) {
@@ -1121,10 +1180,10 @@ if (owstage == "OL") {
 stg_nonOW <- substring(owstage, 2) 
 
 # Weight the lifestage rasters to calc. the relative size of the population 
-# in any given lifestage). The stages are in parallel for increased speed.
-RegCluster(3)
+# in any given lifestage). The 5 stages are run in parallel for increased speed.
+RegCluster(5)
 
-Wtd_Lfstg_others <-  foreach(stg = stage_list, .packages = pkgs, 
+Wtd_Lfstg_others <- foreach(stg = stage_list, .packages = pkgs, 
                                  .inorder = TRUE) %dopar% {
 #for (stg in stage_list) {
   # Get stage number of stage, and then rename to a more descriptive name
@@ -1133,7 +1192,7 @@ Wtd_Lfstg_others <-  foreach(stg = stage_list, .packages = pkgs,
                      c("OE", "OL", "OP", "OA", "E", "L", "P", "A"), 
                    replacement = c("OWegg", "OWlarvae", "OWpupae", "OWadult",
                                    "Egg", "Larvae", "Pupae", "Adult"))
-  # Comment
+
   if (stg != stg_nonOW) {
     ### Weight the rasters ###
     # "mapply" (or parallel version = mcmapply) requires two input lists of the 
@@ -1161,7 +1220,7 @@ Wtd_Lfstg_others <-  foreach(stg = stage_list, .packages = pkgs,
     SaveRaster2(Lfstg_wtd_brk, paste0("Misc_output/", stg_nam), "INT2U", 
                 paste("-", stg_nam, "relative pop. size for all", 
                       nlayers(Lfstg_wtd_brk), "dates")) 
-    
+
     # Create and save summary maps
     Lfstg_plots <- mclapply(1:nlayers(Lfstg_wtd_brk), function(lyr) {
         lyr_name <- paste0(dats2[[lyr]])
@@ -1169,7 +1228,7 @@ Wtd_Lfstg_others <-  foreach(stg = stage_list, .packages = pkgs,
                 paste0(stg_nam, " relative pop. size"), 
                 "Relative pop. size", paste0("Misc_output/", stg_nam))
     }, mc.cores = 3)
-    
+
     # If climate stress exclusions are specified, then take weighted lifestage 
     # results from above and substitute values where the species is under severe 
     # stress only with -1 (Excl1), and areas where the species is both moderate 
@@ -1177,6 +1236,9 @@ Wtd_Lfstg_others <-  foreach(stg = stage_list, .packages = pkgs,
     if (exclusions_stressunits) {
       Lfstg_wtd_excl1 <- Rast_Subs_Excl1(Lfstg_wtd_brk)  
       Lfstg_wtd_excl2 <- Rast_Subs_Excl2(Lfstg_wtd_brk)
+      
+      # Free up memory
+      rm(Lifestg_wtd_brk, Lfstg_wtd_list, Lfstg_plots)
       
       # Make a raster brick of results and save the brick
       Lfstg_wtd_excl1_brk <- do.call(brick, Lfstg_wtd_excl1)
@@ -1210,6 +1272,9 @@ Wtd_Lfstg_others <-  foreach(stg = stage_list, .packages = pkgs,
       }, mc.cores = 3)
     }
   
+    # Free up memory
+    rm(Lfstg_wtd_excl1_brk, Lfstg_wtd_excl2_brk, Lfstg_wtd_excl1, 
+       Lfstg_wtd_excl1, Lfstg_Excl1_plots, Lfstg_Excl2_plots)
   } 
   
   # If the stage is the non-OW form of the OWstage (i.e., Adult = OWadult,
@@ -1257,6 +1322,10 @@ Wtd_Lfstg_others <-  foreach(stg = stage_list, .packages = pkgs,
     if (exclusions_stressunits) {
       Lfstg_incOW_wtd_excl1 <- Rast_Subs_Excl1(Lfstg_incOW_wtd)
       Lfstg_incOW_wtd_excl2 <- Rast_Subs_Excl2(Lfstg_incOW_wtd)
+      
+      # Free up memory
+      rm(Lifestg_incOW_wtd, Lfstg_incOW_plots)
+      
       Lfstg_incOW_wtd_excl1_brk <- do.call(brick, Lfstg_incOW_wtd_excl1)
       Lfstg_incOW_wtd_excl2_brk <- do.call(brick, Lfstg_incOW_wtd_excl2)
       SaveRaster2(Lfstg_incOW_wtd_excl1_brk, 
@@ -1295,13 +1364,14 @@ Wtd_Lfstg_others <-  foreach(stg = stage_list, .packages = pkgs,
       
     }
   }
+  # Free up memory - delete any remaining Lifestage objects
+  rm(list = ls(pattern = "Lfstg_"))
 }
 
 stopCluster(cl)
+rm(cl)
 
-# Remove processed Lifestage bricks to free up memory, and delete 
-# Lifestage cohort rasters now that they have been processed
-rm(list = ls(pattern = "Lfstg_wtd|Lfstg_incOW_wtd"))
+# Delete Lifestage cohort rasters now that they have been processed
 unlink(list.files(pattern = glob2rx(paste0("*Lifestage*cohort*"))))
 
 #### * NumGen raster processing ####
@@ -1342,7 +1412,12 @@ if (exclusions_stressunits) {
 
 # Weight the bricks for NumGen, exporting each generation as a single brick file
 
-RegCluster(ncohort)
+# Set number of cores based on max generations - don't want to overload server
+if (maxgens < 10) {
+  RegCluster(maxgens)  
+} else {
+  RegCluster(10)
+} 
 
 NumGen_wtd_byGen <- foreach(gen = as.list(0:maxgens), .packages = pkgs, 
                             .inorder = TRUE) %dopar% {
@@ -1381,9 +1456,11 @@ NumGen_wtd_byGen <- foreach(gen = as.list(0:maxgens), .packages = pkgs,
                                excl. for all", nlayers(NumGen_wtd), 
                                "dates"), width = 80))
   }
+  
 }
 
 stopCluster(cl)
+rm(cl)
 
 ### * Create summary maps of NumGen results, weighted across cohorts
 
@@ -1411,13 +1488,15 @@ if (odd_gen_map == 1) {
       append = TRUE) 
 }
 
-# Remove NumGen cohort files
+# Remove NumGen objects to free up memory, and delete 
+# NumGen cohort rasters now that they have been processed
+rm(NumGen_wtd_byGen)
 unlink(list.files(pattern = glob2rx(paste0("*NumGen*cohort*"))))
 
 # Create list of raster brick files for NumGen, NumGenExcl1, and 
 # NumGenExcl2 (if specified)
 NumGen_wtd_fls <- list.files(pattern = glob2rx("*NumGen*.tif$"))
-NumGen_wtd_fls_nams <- NumGen_wtd_fls %>% gsub(".tif", "",.)
+NumGen_wtd_fls_nams <- NumGen_wtd_fls %>% gsub(".tif", "", .)
 NumGen_wtd_fls <- as.list(NumGen_wtd_fls)
 names(NumGen_wtd_fls) <- NumGen_wtd_fls_nams
 
@@ -1439,25 +1518,26 @@ for (NumGen_wtd_fl in NumGen_wtd_fls) {
 }
 
 # Split the NumGen layers out by type (NumGen, NumGenExcl1, or NumGenExcl2)
-NumGen_wtd_brk <- raster::subset(NumGen_wtd_mrgd_brk, 
+NumGen_wtd_brk <- raster::subset(NumGen_wtd_mrgd_brk,
                                  grep("NumGen_", names(NumGen_wtd_mrgd_brk)))
 if (exclusions_stressunits) {
-  NumGenExcl1_wtd_brk <- raster::subset(NumGen_wtd_mrgd_brk, 
+  NumGenExcl1_wtd_brk <- raster::subset(NumGen_wtd_mrgd_brk,
                           grep("NumGenExcl1_", names(NumGen_wtd_mrgd_brk)))
-  NumGenExcl2_wtd_brk <- raster::subset(NumGen_wtd_mrgd_brk, 
+  NumGenExcl2_wtd_brk <- raster::subset(NumGen_wtd_mrgd_brk,
                           grep("NumGenExcl2_", names(NumGen_wtd_mrgd_brk)))
 }
 
-rm(NumGen_wtd_mrgd_brk)
-
 # List of NumGen bricks to plot
-NumGen_wtd_patrn <- glob2rx("*NumGen*wtd*brk*")
-NumGen_wtd_plot_list <- mget(ls(pattern = glob2rx("*NumGen*wtd*brk*")))
+NumGen_wtd_plot_list <- mget(ls(pattern = glob2rx("*NumGen*wtd_brk*")))
 
-# For each sampling date, the relative size of the popualtion in each 
+# Free up memory
+rm(NumGen_wtd_mrgd_brk, NumGenExcl1_wtd_brk, NumGenExcl2_wtd_brk, 
+   NumGen_wtd_fls)
+
+# For each sampling date, the relative size of the population in each 
 # generation is calculated; these results are saved as raster bricks and 
 # visualized in summary maps
-RegCluster(ncohort)
+RegCluster(10)
 
 # Make the plots
 #for (brk in NumGen_wtd_plot_list) {
@@ -1469,10 +1549,10 @@ RegCluster(ncohort)
     print(nam)
     print(d)
     dat_vec <- unname(unlist(d)) # change to an unnamed vector
-    
     # Loop through date vector, creating a raster stack for each date
     for (dat in dat_vec) {
       stack_sub <- raster::subset(brk, grep(dat, names(brk)))
+      
       # Convert each layer of raster stack to a datframe; add generation no.
       NumGen_lyrs_toPlot <- list()
       j <- 1
@@ -1488,6 +1568,7 @@ RegCluster(ncohort)
         if (any(df$value > 0)) {
           NumGen_lyrs_toPlot[[j]] <- df
         }
+        
         j <- j + 1
       }
       
@@ -1514,6 +1595,8 @@ RegCluster(ncohort)
         mrgd <- df
       }
       
+      rm(NumGen_lyrs_toPlot) # Free up memory
+      
       # Create a layer for OW generation, using dataframe from latest 
       # generation, if present in data
       if (any(stack_sub_uniqueVals > -1) & any(mrgd$gen == "0 gens.")) {
@@ -1539,7 +1622,7 @@ RegCluster(ncohort)
             excl_vals <- data.frame(mrgd %>% dplyr::filter(value != 0))
             #excl_vals$gen <- "GenOW"
             if (any(df$gen == "0 gens.")) {
-              mrgd2 <- rbind(excl_vals,OW) 
+              mrgd2 <- rbind(excl_vals, OW) 
             } else {
               mrgd2 <- excl_vals
             }
@@ -1547,6 +1630,9 @@ RegCluster(ncohort)
             mrgd2 <- OW
           }
         }
+      
+      # Free up memory
+      rm(df, mrgd, stack_sub)
       
       # Change Gen0 to GenOW for plotting purposes
       # mrgd2 <- mutate(mrgd2, gen = ifelse(gen == "Gen0", "GenOW", gen))
@@ -1589,6 +1675,7 @@ RegCluster(ncohort)
 #}
 
 stopCluster(cl)
+rm(cl)
 
 # Log file messages
 if (exclusions_stressunits) {
@@ -1611,14 +1698,19 @@ if (exclusions_stressunits) {
       WITH NUMBER OF GENS.\n\n"), sep = "")
 }
 
+
+# Free up memory
+rm(NumGen_sum_maps, NumGen_wtd_plot_list)
+
 #### * Lifestage by generation analysis ####
 
 # NumGen layers may overlap at edges due to cohorts
 # Want to show later generations in case of overlap, or maps will show adults 
 # that are assigned to the wrong generation. First make a vector of the various 
 # generation combinations to deal w/ this overlap issue.
-# TO DO: find a more efficient way to overaly generation combos w/o several 
+# TO DO: find a more efficient way to overlay generation combos w/o several 
 # lines of code here
+# Make vector of gen numbers
 gens <- as.numeric(unique(substr(names(NumGen_wtd_brk), start = 8, stop = 8)))
 gens_noOW <- gens[gens != 0] # remove OW generation
 
@@ -1664,7 +1756,7 @@ cat("\n", str_wrap("Replacing older generation vals with newer gen.
 corrected_brick_list <- list()
 
 if (length(gens) > 1) {
-  RegCluster(4)
+  RegCluster(10)
   corrected_NumGen <- foreach(d = 1:length(dats2), .packages = pkgs, 
                               .inorder = FALSE) %dopar% {
     #for (d in 1:length(dats2)) { 
@@ -1706,10 +1798,15 @@ if (length(gens) > 1) {
       corrected_brick_list[i] <- gen_ovlp_NA 
       }
       corrected_brick <- do.call(stack, corrected_brick_list) 
-      }
+    }
+    
     stopCluster(cl)
+    rm(cl)
 }
-      
+
+# Free up memory
+rm(NumGen_wtd_brk)
+
 # Combine all rasters in the list and order them by order them by generation 
 # and date
 if (length(gens) > 1) {
@@ -1731,6 +1828,9 @@ NumGen_wtd_stk3 <- stack()
 for (m in mtch) {
     NumGen_wtd_stk3 <- addLayer(NumGen_wtd_stk3, NumGen_wtd_stk2[[m]])
 }
+
+# Free up memory
+rm(corrected_NumGen, NumGen_wtd_stk2)
 
 # Now use resulting NumGen stack layers to mask out Lifestage (adult) layers
 if (exclusions_stressunits) {
@@ -1799,12 +1899,18 @@ for (gen in gens) {
   j <- j + 1
 }
 
+# Free up memory
+rm(NumGen_wtd_sub, NumGen_msk)
+
 # Make one big stack from list of results
 NumGen_Adults_wtd <- do.call(stack, Adults_wtd_sublist)
 if (exclusions_stressunits) {
   NumGen_AdultsExcl1_wtd <- do.call(stack, AdultsExcl1_wtd_sublist)
   NumGen_AdultsExcl2_wtd <- do.call(stack, AdultsExcl2_wtd_sublist)
 }
+
+# Free up memory
+rm(Adults_wtd_sublist, AdultsExcl1_wtd_sublist, AdultsExcl2_wtd_sublist)
 
 # Subset raster stack by date, extract generation data from layer name, 
 # convert to a data frame, and put it in a list
@@ -1840,9 +1946,9 @@ if (odd_gen_map == 1) {
       append = TRUE) 
 }
 
-# Generate and save summary plots for "Lifestage by Generation" (currenlty only
+# Generate and save summary plots for "Lifestage by Generation" (currently only
 # doing these for adults)
-RegCluster(4)
+RegCluster(3)
 AdultStg_byGen_sum_maps <- foreach(j = 1:length(AdultStg_byGen_list), 
   .packages = pkgs, .inorder = TRUE) %dopar% {
 #for (j in 1:length(AdultStg_byGen_list)) {
@@ -1876,7 +1982,10 @@ AdultStg_byGen_sum_maps <- foreach(j = 1:length(AdultStg_byGen_list),
     # are 0, otherwise will obscure data from other layers (other gens)
     # Not doing this will produce erroneous bands of adults at southern edge
     mrgd <- do.call(rbind, df_list) 
-
+    
+    # Free up memory
+    rm(df_list, stk_sub, r)
+    
     # Optional: create summary maps for odd generations only - beginning for 
     # 1st gen (i.e., 1, 3, 5, ..)
     if (odd_gen_map == 1) { # should odd gens be plotted instead of all gens?
@@ -1912,6 +2021,7 @@ AdultStg_byGen_sum_maps <- foreach(j = 1:length(AdultStg_byGen_list),
 }
 
 stopCluster(cl)
+rm(cl)
 
 cat("\n\nDone with Lifestage with NumGen summary maps\n", 
     file = Model_rlogging, append = TRUE)
@@ -1947,10 +2057,11 @@ cat("\nRenamed all files for last day (", last(dats2), ") to include ", spp,
     " in file name\n", sep = "")
 
 # Move all leftover files without "LBAM" in file name to "Misc_output" 
-# (grep finds the inverse of pattern here)
+# (grep finds the inverse of pattern here - remove directories from file list)
 misc_fls <- grep(list.files(path = output_dir), 
                  pattern = glob2rx(paste0("*", last_date, "*.png$")), 
                  invert = TRUE, value = TRUE)
+misc_fls <- misc_fls[!(misc_fls %in% c("Misc_output", "Logs_metadata"))]
 invisible(file.copy(misc_fls, paste0(output_dir, "/Misc_output/")))
 invisible(file.remove(misc_fls))
 
@@ -1963,3 +2074,7 @@ total_exectime <- round((total_exectime$toc - total_exectime$tic) / 60,
 cat("Run time for entire model =", total_exectime, "min", 
     file = Model_rlogging, append = TRUE)
 cat("\nRun time for entire model =", total_exectime, "min\n\n")
+
+# Clean up
+rm(list = ls(all.names = TRUE)) # Clear all objects including hidden objects
+gc() # Free up memory and report the memory usage

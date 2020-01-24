@@ -1,5 +1,6 @@
 # Functions used for DDRP_v2 R----
-# Last modified on 1/3/20: changed naming of clim. suit. output files
+# Last modified on 1/23/20: changed RegCluster func; fixed memory issues
+# 1/3/20: changed naming of clim. suit. output files
 # Modified on 12/9/19: had to fix code in PEM plotting - error for some spp
 # Issues to resolve: boundary of CONUS doesn't line up completely with raster
 # May not be an issue, but the color key in PEMs is really convoluted - should
@@ -168,9 +169,8 @@ Cut_bins <- function(df, breaks) {
   df$value_orig <- df$value # keep old value so can sort factors against it
   # round decimal places appropriately
   df$value <- ifelse(df$value < 0.1, round_any(df$value, 0.01),
-                    ifelse(df$value < 1 & df$value > 0.1, round_any(df$value, .1),
+                  ifelse(df$value < 1 & df$value > 0.1, round_any(df$value, .1),
                            round_any(df$value, 1)))
-  #df$value <- ifelse(df$value < 1, round_any(df$value, .1), round_any(df$value, 1)) 
   # Cut values into bins; remove brackets, parentheses and dashes; then order
   # values will plotted in numerical order
   df2 <- df %>% mutate(value = cut(value, breaks = breaks, dig.lab = 4)) 
@@ -592,7 +592,7 @@ DailyLoop <- function(cohort, tile_num, template) {
     # Data from last sampling day of year is also saved
     if (sublist[d] %in% sample_pts) {
       # Convert Lifestage and Numgen matrices to rasters and put into a brick
-      mat_list <- list(Lifestage,NumGen,DDtotal)
+      mat_list <- list(Lifestage, NumGen, DDtotal)
       ext <- as.data.frame(as.matrix(extent(template)))
       rast_list <- lapply(mat_list, Mat_to_rast, ext = ext, template = template)
       names(rast_list) <- c("Lifestage_rast", "NumGen_rast", "DDtotal_rast")
@@ -627,6 +627,8 @@ DailyLoop <- function(cohort, tile_num, template) {
         }
       }
       
+      rm(rast_list) # Free up memory
+      
       # If exclusions_stressunits = 1, then do the same thing for LifestageEXCL 
       # and NumGenEXCL, after they are calculated
       if (exclusions_stressunits) {
@@ -640,8 +642,8 @@ DailyLoop <- function(cohort, tile_num, template) {
         
         # Convert LifestageEXCL and NumgenEXCL matrices to rasters and 
         # put into a brick
-        mat_list2 <- list(LifestageEXCL1,LifestageEXCL2,
-                          NumGenEXCL1,NumGenEXCL2)
+        mat_list2 <- list(LifestageEXCL1, LifestageEXCL2,
+                          NumGenEXCL1, NumGenEXCL2)
         ext <- as.data.frame(as.matrix(extent(template)))
         rast_list2 <- lapply(mat_list2, Mat_to_rast, ext = ext, 
                              template = template)
@@ -692,12 +694,14 @@ DailyLoop <- function(cohort, tile_num, template) {
                                         rast_list2$NumGenEXCL2_rast)
         }
         
+        rm(rast_list2) # Free up memory
+        
         # Do the same for chill/heat units and chill/heat exclusion, but just 
         # for cohort 1, because results will be same for all cohorts
         if (cohort == 1) {
           # Convert matrices to rasters and put them into a raster brick
           mat_list3 <- list(chillunitsCUM, chillEXCL, heatunitsCUM,
-                            heatEXCL,AllEXCL)
+                            heatEXCL, AllEXCL)
           ext <- as.data.frame(as.matrix(extent(template)))
           rast_list3 <- lapply(mat_list3, Mat_to_rast, ext = ext, 
                                template = template)
@@ -753,6 +757,7 @@ DailyLoop <- function(cohort, tile_num, template) {
             AllEXCL_brick <- addLayer(AllEXCL_brick, rast_list3$AllEXCL_rast)
           }
           
+          rm(rast_list3) # Free up memory
         }
       }
     }
@@ -773,6 +778,8 @@ DailyLoop <- function(cohort, tile_num, template) {
     SaveRaster(DDtotal_brick, cohort, tile_num, "DDtotal", "INT2S")
   }
   
+  rm(Lifestage_brick, NumGen_brick, DDtotal_brick) # Free up memory
+  
   # If Pest Event Maps are specified (pems = 1), then convert PEM matrices 
   # to rasters and save them
   if (pems) {
@@ -789,6 +796,8 @@ DailyLoop <- function(cohort, tile_num, template) {
     }
   }
   
+  rm(list = ls(pattern = "PEM|pem_list|pem_rast")) # Free up memory
+  
   # If exclusions_stressunits = 1, then save stress unit and exclusions bricks
   if (exclusions_stressunits) {
     # Lifestage and NumGen climate stress exclusion files will vary across 
@@ -801,11 +810,14 @@ DailyLoop <- function(cohort, tile_num, template) {
     SaveRaster(NumGenEXCL1_brick, cohort, tile_num, "NumGenExcl1", "INT2S")
     SaveRaster(NumGenEXCL2_brick, cohort, tile_num, "NumGenExcl2", "INT2S")
     
+    rm(LifestageEXCL1_brick, LifestageEXCL2_brick, NumGenEXCL1_brick,
+       NumGenEXCL2_brick) # Free up memory
+    
     # Chill and heat stress unit and exclusion bricks will be the same for 
     # all cohorts, so take only 1st one
     if (cohort == 1) {
       stress_excl_brick_list <- c(chillunitsCUM_brick, chillEXCL_brick,
-        heatunitsCUM_brick, heatEXCL_brick,AllEXCL_brick)
+        heatunitsCUM_brick, heatEXCL_brick, AllEXCL_brick)
       names(stress_excl_brick_list) <- c("Chill_Stress_Units", 
         "Chill_Stress_Excl", "Heat_Stress_Units", "Heat_Stress_Excl", 
         "All_Stress_Excl")
@@ -815,7 +827,12 @@ DailyLoop <- function(cohort, tile_num, template) {
         brk <- stress_excl_brick_list[[i]]  
         SaveRaster(brk, cohort, tile_num, 
                    paste0(names(stress_excl_brick_list[i])), "INT2S")
+      
       }
+      
+      # Free up memory
+      rm(stress_excl_brick_list, chillunitsCUM_brick, chillEXCL_brick,
+         heatunitsCUM_brick, heatEXCL_brick, AllEXCL_brick) 
       
     }
     #cat("\n### Finished climate exclusions and stress units raster output 
@@ -1254,23 +1271,38 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         }
         
         # Make the color key for the legend 
-        cols_df <- data.frame("cols" = c(Colfunc("deepskyblue", "blue3", 5), 
-          Colfunc("red", "darkred", 5), Colfunc("yellow", "darkgoldenrod3", 5),
-          Colfunc("cyan", "cyan4", 5), Colfunc("lightgreen", "darkgreen", 5),
-          Colfunc("sienna4", "sienna1", 5), 
-          Colfunc("mediumpurple1", "mediumpurple4", 5),
-          Colfunc("magenta", "magenta4", 5), 
-          Colfunc("burlywood", "burlywood4", 5),
-          Colfunc("olivedrab4", "olivedrab1", 5), 
-          Colfunc("lightblue4", "lightblue1", 5), 
-          Colfunc("lightpink", "deeppink4", 5), 
-          Colfunc("slateblue1", "slateblue4", 5)))
+        # Currently enough colors for 20 generations
+        cols_df <- data.frame("cols" = 
+          c(Colfunc("deepskyblue", "blue3", 5), # Gen 0 
+          Colfunc("orangered", "firebrick4", 5), # Gen 1
+          Colfunc("yellow", "gold3", 5), # Gen 2
+          Colfunc("lightgreen", "darkgreen", 5), # Gen 3
+          Colfunc("magenta", "magenta4", 5), # Gen 4
+          Colfunc("tan1", "darkorange3", 5), # Gen 5
+          Colfunc("cyan", "cyan4", 5), # Gen 6
+          Colfunc("lightpink", "deeppink4", 5), # Gen 7
+          Colfunc("greenyellow", "chartreuse3", 5), # Gen 8
+          Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 9
+          Colfunc("yellow", "darkgoldenrod4", 5), # Gen 10
+          Colfunc("deepskyblue", "blue3", 5), # Gen 11
+          Colfunc("mistyrose", "palevioletred2", 5), # Gen 12
+          Colfunc("seagreen1", "seagreen4", 5), # Gen 13
+          Colfunc("lightblue1", "lightblue4", 5), # Gen 14
+          Colfunc("navajowhite1", "navajowhite4", 5), # Gen 15
+          Colfunc("red", "darkred", 5), # Gen 16
+          Colfunc("lightgreen", "darkgreen", 5), # Gen 17
+          Colfunc("sienna", "sienna4", 5), # Gen 18
+          Colfunc("magenta", "magenta4", 5), # Gen 19
+          Colfunc("cyan", "cyan4", 5))) # Gen 20
         weeks_df <- data.frame(gen = c(rep(0, 5), rep(1, 5), rep(2, 5),
           rep(3, 5), rep(4, 5), rep(5, 5), rep(6, 5), rep(7, 5), rep(8, 5), 
-          rep(9, 5), rep(10, 5), rep(11, 5), rep(12, 5)))
+          rep(9, 5), rep(10, 5), rep(11, 5), rep(12, 5), rep(13, 5), rep(14, 5),
+          rep(15, 5), rep(16, 5), rep(17, 5), rep(18, 5), rep(19, 5), 
+          rep(20, 5)))
         weeks_df$gen <- paste(weeks_df$gen, "gens.")
-        col_key <- cbind(cols_df, weeks_df)
+        col_key <- cbind(cols_df, weeks_df) # Combing cols to weeks df
         col_key2 <- suppressWarnings(semi_join(col_key, df, by = "gen"))
+        
         # Create bins of 5 to represent abundance of adults 
         # (0 to 100, or just 0 if OWGen)
         col_key2 <- data.frame(col_key2 %>% group_by(gen) %>% 
@@ -1482,28 +1514,40 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       df$gen <- as.numeric(df$gen)
       
       # Make the color key 
-      cols_df <- data.frame("cols" = c(Colfunc("deepskyblue", "blue3", 5), 
-        Colfunc("red", "darkred", 5), Colfunc("yellow", "darkgoldenrod3", 5),
-        Colfunc("cyan", "cyan4", 5), Colfunc("lightgreen", "darkgreen", 5),
-        Colfunc("sienna4", "sienna1", 5), 
-        Colfunc("mediumpurple1", "mediumpurple4", 5),
-        Colfunc("magenta", "magenta4", 5), 
-        Colfunc("burlywood", "burlywood4", 5),
-        Colfunc("olivedrab4", "olivedrab1", 5), 
-        Colfunc("lightblue4", "lightblue1", 5), 
-        Colfunc("lightpink", "deeppink4", 5), 
-        Colfunc("slateblue1", "slateblue4", 5)))
+      # Currently enough for 20 generations
+      cols_df <- data.frame("cols" = 
+          c(Colfunc("deepskyblue", "blue3", 5), # Gen 0 
+          Colfunc("orangered", "firebrick4", 5), # Gen 1
+          Colfunc("yellow", "gold3", 5), # Gen 2
+          Colfunc("lightgreen", "darkgreen", 5), # Gen 3
+          Colfunc("magenta", "magenta4", 5), # Gen 4
+          Colfunc("tan1", "darkorange3", 5), # Gen 5
+          Colfunc("cyan", "cyan4", 5), # Gen 6
+          Colfunc("lightpink", "deeppink4", 5), # Gen 7
+          Colfunc("greenyellow", "chartreuse3", 5), # Gen 8
+          Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 9
+          Colfunc("yellow", "darkgoldenrod4", 5), # Gen 10
+          Colfunc("deepskyblue", "blue3", 5), # Gen 11
+          Colfunc("mistyrose", "palevioletred2", 5), # Gen 12
+          Colfunc("seagreen1", "seagreen4", 5), # Gen 13
+          Colfunc("lightblue1", "lightblue4", 5), # Gen 14
+          Colfunc("navajowhite1", "navajowhite4", 5), # Gen 15
+          Colfunc("red", "darkred", 5), # Gen 16
+          Colfunc("lightgreen", "darkgreen", 5), # Gen 17
+          Colfunc("sienna", "sienna4", 5), # Gen 18
+          Colfunc("magenta", "magenta4", 5), # Gen 19
+          Colfunc("cyan", "cyan4", 5))) # Gen 20
       weeks_df <- data.frame(gen = c(rep(0, 5), rep(1, 5), rep(2, 5),
-        rep(3, 5), rep(4, 5), rep(5, 5), rep(6, 5), rep(7, 5), rep(8, 5), 
-        rep(9, 5), rep(10, 5), rep(11, 5), rep(12, 5)))
-      #weeks_df$gen <- paste(weeks_df$gen, "gens.")
-      col_key <- cbind(cols_df, weeks_df)
-      col_key2 <- semi_join(col_key, df, by = "gen") 
-      #col_key2 <- mutate(col_key2, gen = ifelse(gen == 0, "OW", gen))
-      #col_key2$gen <- as.factor(col_key2$gen)
+          rep(3, 5), rep(4, 5), rep(5, 5), rep(6, 5), rep(7, 5), rep(8, 5), 
+          rep(9, 5), rep(10, 5), rep(11, 5), rep(12, 5), rep(13, 5), rep(14, 5),
+          rep(15, 5), rep(16, 5), rep(17, 5), rep(18, 5), rep(19, 5), 
+          rep(20, 5)))
+      col_key <- cbind(cols_df, weeks_df) # Combine cols to weeks
+      col_key2 <- semi_join(col_key, df, by = "gen") # Remove unneeded cols
+
       # Create bins of 5 to represent abundance of adults 
       num_gens <- length(unique(col_key2$gen)) # how many unique gens in data?
-      col_key2$value <- rep(c(1, 20, 40, 60, 80), num_gens) # give unique gen 5 bins
+      col_key2$value <- rep(c(1, 20, 40, 60, 80), num_gens) # unique gen 5 bins
       col_key2$value <- paste(col_key2$gen, "gens.:", col_key2$value)
       col_key2$value <- factor(col_key2$value, 
                         levels = unique(col_key2$value[order(col_key2$value)])) 
@@ -1592,7 +1636,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       rep("Aug", 5), rep("Sep", 5), rep("Oct", 5), rep("Nov", 5), 
       rep("Dec", 5))) # 5 weeks per month
     weeks_df <- data.frame(weeks_df %>% group_by(mnth) %>% # Group by month
-      mutate(mnth_wk = row_number()) %>% # Assign unique row # to represent week #
+      mutate(mnth_wk = row_number()) %>% # Assign unique row # to rep. week #
       mutate(mnth_wk = paste(mnth, mnth_wk, sep = "_")))
     # Attach those data frames to make the key
     col_key <- cbind(cols_df, weeks_df)
@@ -1867,22 +1911,20 @@ Rast_Subs_Excl2 <- function(brk) {
 # Specifies the number of clusters to use for parallel computation based on 
 # the number of cohorts in the model, and whether tiles (for CONUS or EAST)
 # are also being run in parallel
-RegCluster <- function(ncohort) {
-  # If region is CONUS or EAST, need to leave some cores available 
-  # for parallel computing of tiles
-  if (region_param %in% c("CONUS", "EAST")) {
-    ncores <- 10
-  # If region is not CONUS or EAST (no tiles in parallel), then have more cores 
-  # to devote to cohorts
+RegCluster <- function(ncores) {
+  # Using FORK has lower memory usage than PSOCK, but will not work for Windows
+  if (grepl("Windows", Sys.info()[1])) {
+    cl <<- makePSOCKcluster(ncores)
   } else {
-    ncores <- 15
+    cl <<- parallel::makeCluster(ncores, type = "FORK")
   }
-  cl <<- makePSOCKcluster(ncores) # export to global environment
+
   # If run is being done on Hopper, need to specify the library for each worker
   if (Sys.info()["nodename"] == "hopper.science.oregonstate.edu") {
     clusterEvalQ(cl, .libPaths("/usr/local/lib64/R/library/"))
   }
-  registerDoParallel(cl)
+  doParallel::registerDoParallel(cl)
+  #on.exit(stopCluster(cl))
   return(cl)
 }
 
