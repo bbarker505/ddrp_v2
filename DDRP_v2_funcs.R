@@ -1,7 +1,24 @@
-# Functions used for DDRP_v2 R----
-# Last modified on 1/23/20: changed RegCluster func; fixed memory issues
+# Functions used for DDRP_v2.R -----
+# 
+# This file must accompany DDRP_v2.R; it contains the majority of functions 
+# needed to run the program.
+# 
+# Log of most recent chnages -----
+# On 2/25/20: Minor edits to PEM legend colors so weeks of year are always 
+# assigned the same color
+# On 2/18/20: Changed RegCluster back from FORK (to default = PSOCK) due to
+# apparent issues on Hopper (cannot open connection issues whenever the
+# process required access to numerous raster files). Updated Cut_interval func.
+# On 2/15/20: Removed EXCl1 and EXCL2 steps for NumGen and Lifestage in 
+# Daily Loop function because those raster bricks are not used - it is more
+# memory efficient to calculate them in the Data Processing section
+# On 2/12/20: streamlined Rast_Subs_Excl functions; added Weight_rasts function
+# On 2/7/20: fixed minor bugs in PlotMap function & changed a color
+# On 1/28/20: detect CRS from template data, not hard-code it
+# On 1/23/20: changed RegCluster func; fixed memory issues
 # 1/3/20: changed naming of clim. suit. output files
 # Modified on 12/9/19: had to fix code in PEM plotting - error for some spp
+#
 # Issues to resolve: boundary of CONUS doesn't line up completely with raster
 # May not be an issue, but the color key in PEMs is really convoluted - should
 # look into simplifying the code if possible.
@@ -72,6 +89,20 @@ Assign_extent <- function(region_param = paste0(region_param)) {
                 "WY"           = extent(-111.6167, -103.7333, 40.6667, 45.4833))
   return(REGION)
 }
+
+# autoStopCluster <- function(cl) {
+#   stopifnot(inherits(cl, "cluster"))
+#   env <- new.env()
+#   env$cluster <- cl
+#   attr(cl, "gcMe") <- env
+#   reg.finalizer(env, function(e) {
+#     message("Finalizing cluster ...")
+#     #message(capture.output(print(e$cluster)))
+#     try(parallel::stopCluster(e$cluster), silent = FALSE)
+#     message("Finalizing cluster ... done")
+#   })
+#   cl
+# }
 
 #### (2). Base_map: base map for summary plots ####
 # Base features used for all summary (PNG) maps in "PlotMap" function
@@ -166,16 +197,25 @@ ConvDF <- function(rast) {
 # Classify data (= df) so it can be visualized in categories 
 # (e.g., 1-10, 11-20, 21-30) 
 Cut_bins <- function(df, breaks) {
-  df$value_orig <- df$value # keep old value so can sort factors against it
-  # round decimal places appropriately
-  df$value <- ifelse(df$value < 0.1, round_any(df$value, 0.01),
-                  ifelse(df$value < 1 & df$value > 0.1, round_any(df$value, .1),
-                           round_any(df$value, 1)))
-  # Cut values into bins; remove brackets, parentheses and dashes; then order
-  # values will plotted in numerical order
-  df2 <- df %>% mutate(value = cut(value, breaks = breaks, dig.lab = 4)) 
-  df2$value <- gsub(pattern = "[()]|\\[|\\]", replacement = "", df2$value)
-  df2$value <- gsub(pattern = "[,]", replacement = "-", df2$value)
+  df$value_orig <- df$value # Keep old value so can sort factors against it
+  # Find max number of digits in the values and cut values into bins, 
+  # remove brackets, parentheses and dashes
+  dig.lab <- nchar(as.character(max(df$value))) 
+  df2 <- df %>% mutate(value = cut_interval(df$value, n = breaks, 
+                                           dig.lab = dig.lab)) 
+  df2$value <- gsub(df2$value, pattern = "[()]|\\[|\\]", 
+                    replacement = "", df2$value)
+  
+  # Remove any numbers following a decimal - it is unclear how to better 
+  # deal with this in the "cut_interval" function (mixing low (below 10)
+  # and high (above 10) numbers results in lower numbers having decimals
+  # due to the dig.lab input needing to be higher)
+  df2$bin1 <- ceiling(as.numeric(str_split_fixed(df2$value, ",", 2)[,1])) 
+  df2$bin2 <- ceiling(as.numeric(str_split_fixed(df2$value, ",", 2)[,2])) 
+  
+  # Paste those values back together and order the bins according to 
+  # the original values to they will plotted in numerical order
+  df2$value <- paste(df2$bin1, df2$bin2, sep = "-")
   df2$value <- factor(df2$value, 
                       levels = unique(df2$value[order(df2$value_orig)])) 
   return(df2)
@@ -591,6 +631,7 @@ DailyLoop <- function(cohort, tile_num, template) {
     #### * Save data for certain days, specified by sampling frequency ####
     # Data from last sampling day of year is also saved
     if (sublist[d] %in% sample_pts) {
+      #cat("sampled", sublist[d])
       # Convert Lifestage and Numgen matrices to rasters and put into a brick
       mat_list <- list(Lifestage, NumGen, DDtotal)
       ext <- as.data.frame(as.matrix(extent(template)))
@@ -632,70 +673,7 @@ DailyLoop <- function(cohort, tile_num, template) {
       # If exclusions_stressunits = 1, then do the same thing for LifestageEXCL 
       # and NumGenEXCL, after they are calculated
       if (exclusions_stressunits) {
-        # Exclusions included: -2=severe stress, -1=moderate stress
-        LifestageEXCL1 <- Cond((AllEXCL > -2), Lifestage, -2)
-        LifestageEXCL2 <- Cond((AllEXCL == -2), -2, 
-                           Cond((AllEXCL == -1), -1, Lifestage))
-        NumGenEXCL1 <- Cond((AllEXCL > -2), NumGen, -2)
-        NumGenEXCL2 <- Cond((AllEXCL == -2), -2, 
-                            Cond((AllEXCL == -1), -1, NumGen)) 
-        
-        # Convert LifestageEXCL and NumgenEXCL matrices to rasters and 
-        # put into a brick
-        mat_list2 <- list(LifestageEXCL1, LifestageEXCL2,
-                          NumGenEXCL1, NumGenEXCL2)
-        ext <- as.data.frame(as.matrix(extent(template)))
-        rast_list2 <- lapply(mat_list2, Mat_to_rast, ext = ext, 
-                             template = template)
-        names(rast_list2) <- c("LifestageEXCL1_rast", "LifestageEXCL2_rast", 
-                               "NumGenEXCL1_rast", "NumGenEXCL2_rast")
-        
-        #cat("### Adding layers to Lifestage Stress Exclusion 1 brick for 
-        #cohort", cohort, ": doy =", sublist[d], "\n", 
-        #file=daily_logFile, append=TRUE)
-        # LifestageEXCL1 brick
-        if (!exists("LifestageEXCL1_brick")) {
-          LifestageEXCL1_brick <- brick(rast_list2$LifestageEXCL1_rast, 
-                                        crs = crs)
-        } else {
-          LifestageEXCL1_brick <- addLayer(LifestageEXCL1_brick, 
-                                       rast_list2$LifestageEXCL1_rast)
-        }
-        
-        #cat("### Adding layers to Lifestage Stress Exclusion 2 brick 
-        #for cohort", cohort, ": doy =", sublist[d], "\n", 
-        #file=daily_logFile, append=TRUE)
-        # LifestageEXCL2 brick
-        if (!exists("LifestageEXCL2_brick")) {
-          LifestageEXCL2_brick <- brick(rast_list2$LifestageEXCL2_rast, 
-                                        crs = crs)
-        } else {
-          LifestageEXCL2_brick <- addLayer(LifestageEXCL2_brick, 
-                                       rast_list2$LifestageEXCL2_rast)
-        }
-        
-        #cat("### Adding layers to NumGen Stress Exclusion 1 brick for cohort",
-        # cohort, ": doy =", sublist[d], "\n", file=daily_logFile, append=TRUE)
-        # NumGenEXCL1 brick
-        if (!exists("NumGenEXCL1_brick")) {
-          NumGenEXCL1_brick <- brick(rast_list2$NumGenEXCL1_rast, crs = crs)
-        } else {
-          NumGenEXCL1_brick <- addLayer(NumGenEXCL1_brick, 
-                                        rast_list2$NumGenEXCL1_rast)
-        }
-        
-        #cat("### Adding layers to NumGen Stress Exclusion 2 brick for cohort", 
-        #cohort, ": doy =", sublist[d], file=daily_logFile, append=TRUE)
-        # NumGenEXCL2 brick
-        if (!exists("NumGenEXCL2_brick")) {
-          NumGenEXCL2_brick <- brick(rast_list2$NumGenEXCL2_rast, crs = crs)
-        } else {
-          NumGenEXCL2_brick <- addLayer(NumGenEXCL2_brick, 
-                                        rast_list2$NumGenEXCL2_rast)
-        }
-        
-        rm(rast_list2) # Free up memory
-        
+
         # Do the same for chill/heat units and chill/heat exclusion, but just 
         # for cohort 1, because results will be same for all cohorts
         if (cohort == 1) {
@@ -772,7 +750,7 @@ DailyLoop <- function(cohort, tile_num, template) {
   # Save non-optional raster bricks = Lifestage and NumGen
   SaveRaster(Lifestage_brick, cohort, tile_num, "Lifestage", "INT1U")
   SaveRaster(NumGen_brick, cohort, tile_num, "NumGen", "INT1U")
-  
+
   # Save DDtotal brick (only for cohort 1)
   if (cohort == 1) {
     SaveRaster(DDtotal_brick, cohort, tile_num, "DDtotal", "INT2S")
@@ -800,19 +778,7 @@ DailyLoop <- function(cohort, tile_num, template) {
   
   # If exclusions_stressunits = 1, then save stress unit and exclusions bricks
   if (exclusions_stressunits) {
-    # Lifestage and NumGen climate stress exclusion files will vary across 
-    # cohorts, so they need to be processed to produce final results in "Data
-    # Processing" section
-    SaveRaster(LifestageEXCL1_brick, cohort, tile_num, "LifestageEXCL1", 
-               "INT2S")
-    SaveRaster(LifestageEXCL2_brick, cohort, tile_num, "LifestageEXCL2", 
-               "INT2S")
-    SaveRaster(NumGenEXCL1_brick, cohort, tile_num, "NumGenExcl1", "INT2S")
-    SaveRaster(NumGenEXCL2_brick, cohort, tile_num, "NumGenExcl2", "INT2S")
-    
-    rm(LifestageEXCL1_brick, LifestageEXCL2_brick, NumGenEXCL1_brick,
-       NumGenEXCL2_brick) # Free up memory
-    
+
     # Chill and heat stress unit and exclusion bricks will be the same for 
     # all cohorts, so take only 1st one
     if (cohort == 1) {
@@ -954,7 +920,7 @@ ExtractBestPRISM <- function(files, forecast_data, keep_leap) {
 Mat_to_rast <- function(m, ext, template) {
   rast <- raster(m, xmn = ext[1,1], xmx = ext[1,2], 
                     ymn = ext[2,1], ymx = ext[2,2])
-  crs(rast) <- "+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0"
+  crs <- crs(template)
   res(rast) <- res(template)
   NAvalue(rast) <- NaN
   return(rast)
@@ -1053,6 +1019,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     # nested parallel processes.
     log_capt <- paste("-", titl_orig, "on", format(as.Date(d, "%Y%m%d"), 
                                                       "%m/%d/%Y"))
+    df$value <- round(df$value, 0)
     df$value_orig <- df$value # Keep original values for sorting later
     
     # Create a plot separately for rasters where all rel. pop size values = 0
@@ -1174,7 +1141,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       
       # Else if all values are below 0, then just plot those climate stress
       # exclusions (-1 and -2)
-    } else if (all(df$value < 0)) {
+    } else if (all(as.numeric(df$value) < 0)) {
         df <- mutate(df, value = ifelse(value == -2, "excl.-severe", 
                         ifelse(value == -1, "excl.-moderate", NA)))
         df <- mutate(df, gen = ifelse(value == "excl.-severe", "excl.-severe", 
@@ -1206,7 +1173,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
           mytheme
         
         # If there are any values > 0, need to format data accordingly
-      } else if (any(df$value > 0)) {
+      } else if (any(as.numeric(df$value) > 0)) {
         # Want to just show non-zero values if they're available, 
         # so remove remove rows (i.e. generations) with zero values
         # Anti-join removes those Gen0 values present in other dataframe
@@ -1216,7 +1183,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         df <- rbind(vals_no0, removeDups)
         
         # If all values are >= 0
-        if (all(df$value >= 0)) {
+        if (all(as.numeric(df$value) >= 0)) {
           df <- mutate(df, value = ifelse(value < 20, 0, ifelse(value < 40, 20, 
                                   ifelse(value < 60, 40, ifelse(value < 80, 60, 
                                   ifelse(value < 100, 80, value))))))
@@ -1228,7 +1195,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
           
         # If data has climate stress exclusion values (AdultExcl1_byGen or 
         # AdultExcl2_byGen), but not all values are climate stress exclusions
-        } else if (any(df$value < 0)) {
+        } else if (any(as.numeric(df$value) < 0)) {
           if (any(df$value > 0)) {
             df2 <- dplyr::filter(df, !value < 0) # need to remove -2 and -1 vals
             df2 <- mutate(df2, value = ifelse(value < 20, 0, 
@@ -1280,7 +1247,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
           Colfunc("magenta", "magenta4", 5), # Gen 4
           Colfunc("tan1", "darkorange3", 5), # Gen 5
           Colfunc("cyan", "cyan4", 5), # Gen 6
-          Colfunc("lightpink", "deeppink4", 5), # Gen 7
+          Colfunc("lightpink", "deeppink3", 5), # Gen 7
           Colfunc("greenyellow", "chartreuse3", 5), # Gen 8
           Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 9
           Colfunc("yellow", "darkgoldenrod4", 5), # Gen 10
@@ -1507,6 +1474,8 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
             ifelse(value == -1, "excl.-moderate", value))))
           df$value <- factor(df$value, 
                              levels = unique(df$value[order(df$value)]))
+          gens_df <- data.frame("value" = paste(unique(df$gen), "gens."), 
+                                "x" = NA, "y" = NA, "gen" = unique(df$gen))
         }
       }
       
@@ -1523,7 +1492,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
           Colfunc("magenta", "magenta4", 5), # Gen 4
           Colfunc("tan1", "darkorange3", 5), # Gen 5
           Colfunc("cyan", "cyan4", 5), # Gen 6
-          Colfunc("lightpink", "deeppink4", 5), # Gen 7
+          Colfunc("lightpink", "deeppink3", 5), # Gen 7
           Colfunc("greenyellow", "chartreuse3", 5), # Gen 8
           Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 9
           Colfunc("yellow", "darkgoldenrod4", 5), # Gen 10
@@ -1566,8 +1535,9 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       # named vector of these
       col_key2 <- rbind(col_key2, leg_cols)
       # Breaks to use in plotting function, so only one shade per gen 
-      # is shown in legend
-      lgnd_brks <- as.character(gens_df$value)
+      # is shown in legend. Need to use str_sort so that the vector is sorted
+      # by generation number, not alphabetically.
+      lgnd_brks <- str_sort(gens_df$value, numeric  = TRUE)
       lgnd_brks <- append(c("other stages"), lgnd_brks) # add "other stages"
       
       # Add grayscale colors to legend colors if climate stress exclusions
@@ -1649,17 +1619,16 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       group_by(mnth) %>% # Group by month
       # Assign a unique value to each row in a month - used for joining later
       # This will also be done for other data frames below 
-      mutate(mnth_wk = row_number()) %>% 
-      mutate(mnth_wk = paste(mnth, mnth_wk, sep = "_"))
-    
+      mutate(mnth_day = format(as.Date(value, "%b-%d"))) %>%
+      mutate(week_num = ceiling(day(mnth_day) / 7)) %>%
+      mutate(mnth_wk = paste(mnth, week_num, sep = "_")) %>%
+      arrange(mnth_day)
+
     # Necessary for removing weeks that are not in the data in the col_key2
     mnth_ct <- data.frame(dats %>% group_by(mnth) %>% 
       dplyr::mutate(freq = n_distinct(value))) %>%
-      arrange(., mnth) %>%
-      group_by(mnth) %>% # Group by month
-      mutate(mnth_wk = row_number()) %>% # Assign unique row # to repr. week #
-      mutate(mnth_wk = paste(mnth, mnth_wk, sep = "_"))
-    
+      group_by(mnth) #%>% # Group by month
+
     # Finally filter unncessary weeks out of generic color key (some months 
     # have only 4 weeks)
     col_key2 <- dplyr::semi_join(col_key, dats, by = "mnth") %>% 
@@ -1738,7 +1707,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       #     file = Model_rlogging, append = TRUE) # plot caption for log file
     },
     error = function(e) {
-      cat("Could not create plot for ", outfl, "_", d, ".png\n", sep = "", 
+      cat("\nCould not create plot for ", outfl, "_", d, ".png\n", sep = "", 
           file = Model_rlogging, append = TRUE) 
     } )
 }
@@ -1866,45 +1835,44 @@ PlotMap_stress <- function(r, d, max1, max2, titl, lgd, outfl) {
 
 #### (16). Rast_Subs_Excl: lifestage raster weighting + clim. stress excl. ####
 # Substitutes weighted lifestage raster values with severe (-2) 
-# climate stress exclusions (Excl1) in areas under climate 
-# stress (i.e., where Lifestage overlaps with Excl1)
-Rast_Subs_Excl1 <- function(brk) {
-  # Get all climate stress exclusion data
-  allEXCL_patrn <- glob2rx("*All_Stress_Excl*.tif$")
-  allEXCL_brk <- brick(list.files(pattern = allEXCL_patrn))
-  # If PEM, then only take the last layer of allEXCL_brk (last date)
-  if (deparse(substitute(brk)) == "PEM") {
-    allEXCL_brk <- allEXCL_brk[[last(nlayers(allEXCL_brk))]] # Keep last layer
-  }
-  lapply(1:nlayers(brk), function(lyr) {
-    brk_lyr <- brk[[lyr]]
-    Excl <- allEXCL_brk[[lyr]]
-    # Create logical index (for later comparison)
-    Excl1 <- Excl == -2   # Only severe exclusion
-    brk_lyr[Excl1] <- Excl[Excl1] 
-    return(brk_lyr)
-  })
-}
-
-# Substitutes weighted lifestage raster values with severe (-2) 
 # and moderate (-1) climate stress exclusions (Excl2) in areas under climate 
 # stress (i.e., where Lifestage overlaps with Excl2)
-Rast_Subs_Excl2 <- function(brk) {
+# Two types: severe stress only (Excl1) or severe and moderate stress (Excl2)
+Rast_Subs_Excl <- function(brk, type) {
+  
   # Get all climate stress exclusion data
-  allEXCL_patrn <- glob2rx("*All_Stress_Excl*.tif$")
-  allEXCL_brk <- brick(list.files(pattern = allEXCL_patrn))
-  # If PEM, then only take the last layer (last date)
+  allEXCL_brk <- brick(list.files(pattern = glob2rx("*All_Stress_Excl*.tif$")))
+  
   # If PEM, then only take the last layer of allEXCL_brk (last date)
+  # because PEMs are created only for the last date
   if (deparse(substitute(brk)) == "PEM") {
     allEXCL_brk <- allEXCL_brk[[last(nlayers(allEXCL_brk))]] # Keep last layer
   }
+  
+  # Identify pixels that have moderate (-1) or severe (-2) stress values.
+  # The corresponding pixel in the input raster brick will be replaced with a
+  # stress value. 
   lapply(1:nlayers(brk), function(lyr) {
+
+    # For each layer in the brick, get the corresponding layer
+    # in the All Stress Exclusion brick (allEXCL_brk)
     brk_lyr <- brk[[lyr]]
-    Excl <- allEXCL_brk[[lyr]]
-    Excl2 <- Excl < 0   # both severe and moderate exclusion
-    brk_lyr[Excl2] <- Excl[Excl2] 
+    Excl <- allEXCL_brk[[lyr]] 
+    
+    # Replace pixels in brick layer with the stress values in
+    # areas of overlap
+    
+    if (type == "Excl2") {
+      Excl2 <- Excl < 0   # Both severe and moderate exclusion
+      brk_lyr[Excl2] <- Excl[Excl2] 
+    } else if (type == "Excl1") {
+      Excl1 <- Excl == -2   # Only severe exclusion
+      brk_lyr[Excl1] <- Excl[Excl1]
+    }
+      
     return(brk_lyr)
   })
+  
 }
 
 #### (17). RegCluster: register cluster for parallel computing ####
@@ -1912,11 +1880,10 @@ Rast_Subs_Excl2 <- function(brk) {
 # the number of cohorts in the model, and whether tiles (for CONUS or EAST)
 # are also being run in parallel
 RegCluster <- function(ncores) {
-  # Using FORK has lower memory usage than PSOCK, but will not work for Windows
   if (grepl("Windows", Sys.info()[1])) {
     cl <<- makePSOCKcluster(ncores)
   } else {
-    cl <<- parallel::makeCluster(ncores, type = "FORK")
+    cl <<- makeCluster(ncores)
   }
 
   # If run is being done on Hopper, need to specify the library for each worker
@@ -2014,4 +1981,71 @@ SplitRas <- function(raster, ppside, save, plot) {
     }
   }
   return(r_list)
+}
+
+#### (21). Weight_rasts: weight cohort rasters ####
+# Two input lists are required: 1) either "Lifestage" or "NumGen" raster bricks
+# for all cohorts, and 2) a vector of the relative population size comprised
+# by each cohort. The function weights the cohort bricks according the size. 
+# If there are 7 cohorts sampled each month of yr (12 mon + end of year), 
+# then rast_wtd will be a list of 7 cohorts each w/ 13 layers 
+# (13 * 7 = 91 layers). 
+
+# Weight the cohorts according to their relative size in the population, 
+# exporting each generation as a single brick file
+# "type" variable will be life stage (stg) or generation number (gen)
+# "value" variable is not needed for the function to work; could remove
+# (stage number is in global environment), so maybe remove.
+Weight_rasts <- function(cohort_fls, fl_type) { 
+  
+  # For each life stage or generation, extract data from raster brick, and 
+  # multiple it by the rel. pop size of each cohort. The result is a list of 
+  # raster bricks that provide the relative pop. size of each cohort for each 
+  # date.
+  if (fl_type == "Lifestage") {
+    
+    # Function to recode results from the OW stage (stg_num = 1) to the same 
+    # value as the non-OW stage, and then calculate the rel. pop. size of the
+    # combined stages (e.g., "Adult" size + "OWadult" size)
+
+      wtd_brk_lst <- list()
+      i <- 1
+      for (j in 1:length(cohort_fls)) {
+        
+        brk <- brick(cohort_fls[[j]])
+        
+        if (stg == stg_nonOW) {
+          brk[brk == 1] <- stg_num
+        }
+        
+        brk_stg <- brk == stg_num
+        wtd_brk <- round(100 * brk_stg) * relpopsize[i]
+        wtd_brk_lst[[j]] <- wtd_brk
+        i <- i + 1
+
+      }
+ 
+    # Same as analysis as above but according to generation
+  } else if (fl_type == "NumGen") {
+
+    wtd_brk_lst <- list()
+    i <- 1
+    for (j in 1:length(cohort_fls)) {
+    
+      brk <- brick(cohort_fls[[j]])
+      wtd_brk <- round(100 * brk) * relpopsize[i]
+      wtd_brk_lst[[j]] <- wtd_brk
+      i <- i + 1
+    
+    }
+  }
+    
+  # The results from previous step need to be summed across all cohorts. 
+  # This produces a single raster brick in which each layer represents the 
+  # relative population size of each cohort for each date.
+  # "Reduce" accomplishes this task.
+  wtd_sum <- Reduce("+", wtd_brk_lst)
+  #gc()
+  
+  return(wtd_sum)
 }
