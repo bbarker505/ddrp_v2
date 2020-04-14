@@ -1,7 +1,8 @@
 #!/usr/bin/Rscript
 #.libPaths("/usr/lib64/R/library/")
-
 # Log of recent edits
+# 
+# 3/30/20: fixed typo/missing object in log file text for Adult by Gen
 # 2/17/20: major overhaul of NumGen weighting and Adult by Lifestage analyses. 
 # Experimenting showed that saving large raster bricks to disk may slightly
 # improve run times (compared to holding them in memory). Also removed FORK
@@ -138,9 +139,9 @@ if (!is.na(opts[1])) {
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
   start_year    <- "2020" # Year to use
   start_doy     <- 1 # Start day of year          
-  end_doy       <- 366 # End day of year - need 365 if voltinism map 
+  end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap year be kept?
-  region_param  <- "FL" # Default REGION to use
+  region_param  <- "CONUS" # Default REGION to use
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
   pems          <- 1 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
@@ -1046,7 +1047,7 @@ if (pems) {
   foreach(type = PEM_types, .packages = pkgs, 
                         .inorder = FALSE) %dopar% {
   #for (type in PEM_types) {
-    #print(type)
+   # print(type)
     # Find files by type (e.g., "PEMe1" for each cohort) 
     files_by_type <- PEM_files[grep(pattern = type, x = PEM_files, 
                                     fixed = TRUE)] 
@@ -2065,7 +2066,7 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
                   "Misc_output/Adult_Excl2_byGen")
       }
     } else {
-      cat("\n\nWARNING: Adult w/ NumGen results for", nam, "on", d, 
+      cat("\n\nWARNING: Adult w/ NumGen results for each gen. on", d, 
           "\nnot plotted - no odd generation data for this date", 
           file = Model_rlogging, append = TRUE)
     }

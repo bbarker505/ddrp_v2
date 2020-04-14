@@ -4,6 +4,7 @@
 # needed to run the program.
 # 
 # Log of most recent chnages -----
+# On 3/31/20: Fixed issue w/ PEMs showing Dec of previous year
 # On 2/25/20: Minor edits to PEM legend colors so weeks of year are always 
 # assigned the same color
 # On 2/18/20: Changed RegCluster back from FORK (to default = PSOCK) due to
@@ -1566,8 +1567,9 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     #### * Pest Event Maps ####
   } else if (grepl("Avg|Earliest", outfl)) {
     log_capt <- paste("-", titl_orig) # Caption for log file
+    start_year <- as.numeric(start_year)
     
-    # Format the data, especially the value column
+    # Format the data value column
     df <- df %>% 
       dplyr::filter(!(value %in% c(0, 366))) # remove day 0 and day 366
     df$value <- round(df$value)
@@ -1576,17 +1578,46 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     # 6 weeks in December for some years
     df <- df %>% mutate(value = ifelse(value >= 364, 363, value))
     df$value_orig <- df$value # Create for ordering recoded values later
-    # Convert day of year to a date, convert date to a week of the year and 
-    # format to "month-day" format
-    # NEED TO FIX? - why does as.Date always get the date 1 day off? 
+    
+    # Convert day of year to a date, convert date to a week of the year, and 
+    # format to "month-day" format. First need to subtract 1 from all day of 
+    # year values, because as.Date starts at day 1, not day 0
+    df$value <- df$value - 1
     df$value <- as.Date(df$value, origin = 
-                          as.Date(paste0(start_year, "-01-01"))) - 1
-    df$value <- cut.POSIXt(strptime(df$value, format = "%Y-%m-%d"), 
-                           breaks = "1 weeks") 
-    # Reformat the dates to this format: 2019-Jan-01
+                          as.Date(paste0(start_year, "-01-01"))) 
+
+    # The resulting values may have dates before Jan-1 (Dec-30, Dec-31) because 
+    # they occur in the same week as Jan-1. The ceiling_date function (dplyr)
+    # rounds up to the next month so that they begin on Jan-1 
+    # (e.g., 2019-12-31 == 2020-01-01)
+    df$value <- as.character(cut.POSIXt(strptime(df$value, format = "%Y-%m-%d"), 
+                                        breaks = "1 weeks"))
+    badDates <- df %>% filter(grepl(as.character(start_year - 1), value))
+    badDates$value <- as.character(ceiling_date(as.Date(badDates$value, 
+                                                format = "%Y-%m-%d"), "month"))
+    
+    # Now replace old data with data that have fixed date
+    # Then add week of month column
+    df <- df %>% filter(!(grepl(as.character(start_year - 1), value))) %>%
+      bind_rows(., badDates)    
+    df$week <- ceiling(mday(df$value)/7)
+    
+    # Reformat the dates to month-day (e.g., Jan-01, Jan-06, ...)
     # Clim. exc. values (-1 and -2) will become NA
     df$value <- format(strptime(df$value, format = "%Y-%m-%d"), 
-                       format = "%b-%d")
+                      format = "%b-%d")
+    
+    # Data frames w/ January may have 2 dates (Jan-01 + another) for week 1
+    # This will result in the key having 2 dates w/ same color
+    # Check to see if this is true, and if so, then add 1 week onto weeks for
+    # January
+    week1 <- df %>% filter(week == 1 & value_orig < 30) %>% distinct(value)
+    
+    if (nrow(week1) > 1) {
+      df <- df %>% 
+        mutate(week = ifelse(grepl("Jan-", value) & !grepl("Jan-01", value), 
+                             week + 1, week))
+    }
     
     # Generate a key for colors for every week of the year, allowing up to 
     # 5 weeks per month
@@ -1608,6 +1639,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     weeks_df <- data.frame(weeks_df %>% group_by(mnth) %>% # Group by month
       mutate(mnth_wk = row_number()) %>% # Assign unique row # to rep. week #
       mutate(mnth_wk = paste(mnth, mnth_wk, sep = "_")))
+    
     # Attach those data frames to make the key
     col_key <- cbind(cols_df, weeks_df)
     col_key$mnth <- as.character(col_key$mnth) # Add which month
@@ -1619,9 +1651,12 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       group_by(mnth) %>% # Group by month
       # Assign a unique value to each row in a month - used for joining later
       # This will also be done for other data frames below 
+      
+      #mutate(week = ceiling(day(mnth_day) / 7)) %>%
+      left_join(dplyr::select(df, value, week), by = "value") %>%
       mutate(mnth_day = format(as.Date(value, "%b-%d"))) %>%
-      mutate(week_num = ceiling(day(mnth_day) / 7)) %>%
-      mutate(mnth_wk = paste(mnth, week_num, sep = "_")) %>%
+      mutate(mnth_wk = paste(mnth, week, sep = "_")) %>%
+      distinct(., .keep_all = TRUE) %>%
       arrange(mnth_day)
 
     # Necessary for removing weeks that are not in the data in the col_key2
@@ -1675,7 +1710,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
 
     # Make legend colors df a vector and plot results
     cols <- setNames(as.character(col_key2$cols), col_key2$value)
-     p <- Base_map(df3) + 
+    p <- Base_map(df3) + 
       scale_fill_manual(values = cols, name = str_wrap(paste0(lgd), 
                                                        width = 15)) +
       labs(title = str_wrap(paste(sp, titl), width = titl_width), 
