@@ -2,6 +2,7 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
+# On 4/24/20: Changed the parameter name "chill stress" to "cold stress"
 # 3/30/20: fixed typo/missing object in log file text for Adult by Gen
 # 2/17/20: major overhaul of NumGen weighting and Adult by Lifestage analyses. 
 # Experimenting showed that saving large raster bricks to disk may slightly
@@ -386,10 +387,10 @@ cat("\n\n Stage durations in degree-days (DDs)",
 # Document climate stress exclusion parameter values, if applicable
 if (exclusions_stressunits) {
   cat("\n \n Climate stress parameters",
-      "\n Lower Chill Threshold:", chillstress_threshold, 
+      "\n Lower Cold Threshold:", coldstress_threshold, 
       "\n Upper Heat Threshold:", heatstress_threshold,
-      "\n Max Chill Units (lower bound):", chillstress_units_max1, 
-      "\n Max Chill Units (upper bound):", chillstress_units_max2,
+      "\n Max Cold Units (lower bound):", coldstress_units_max1, 
+      "\n Max Cold Units (upper bound):", coldstress_units_max2,
       "\n Max Heat Stress Units (lower bound):", heatstress_units_max1,
       "\n Max Heat Stress Units (upper bound):", heatstress_units_max2, 
       file = metadata, append = TRUE)
@@ -903,7 +904,7 @@ fl_rename <- lapply(fls, function(fl) {
 dats_list <- split(dats2, ceiling(seq_along(dats2)/(length(dats2)/4)))
 
 # For each date in a date chunk, plot and save summary maps for:
-# degree-day accumulation, chill stress unit accumulation, chill stress 
+# degree-day accumulation, cold stress unit accumulation, cold stress 
 # exclusion, heat stress unit accumulation, heat stress exclusion, and all 
 # stress exclusion
 
@@ -926,16 +927,16 @@ dd_stress_results <- foreach(dat = dats_list, .packages = pkgs,
 
       if (exclusions_stressunits) {
         
-        # Chill stress unit accumulation
-         PlotMap_stress(subset(brick("Chill_Stress_Units.tif"), lyr), d, 
-                       chillstress_units_max1, chillstress_units_max2, 
-                       "Chill stress units", "Chill Stress Units", 
-                       "Misc_output/Chill_Stress_Units")
+        # Cold stress unit accumulation
+         PlotMap_stress(subset(brick("Cold_Stress_Units.tif"), lyr), d, 
+                       coldstress_units_max1, coldstress_units_max2, 
+                       "Cold stress units", "Cold Stress Units", 
+                       "Misc_output/Cold_Stress_Units")
 
-        # Chill stress exlusions (-1 = moderate; -2 = severe)
-        PlotMap(subset(brick("Chill_Stress_Excl.tif"), lyr), d, 
-                "Chill stress exclusion", "Exclusion status", 
-                "Misc_output/Chill_Stress_Excl")
+        # Cold stress exlusions (-1 = moderate; -2 = severe)
+        PlotMap(subset(brick("Cold_Stress_Excl.tif"), lyr), d, 
+                "Cold stress exclusion", "Exclusion status", 
+                "Misc_output/Cold_Stress_Excl")
 
         # Heat unit accumulation
         PlotMap_stress(subset(brick("Heat_Stress_Units.tif"), lyr), d, 
@@ -948,7 +949,7 @@ dd_stress_results <- foreach(dat = dats_list, .packages = pkgs,
                 "Heat stress exclusion", "Exclusion status", 
                 "Misc_output/Heat_Stress_Excl")
 
-        # All stress exclusions (chill stress + heat stress exclusions)
+        # All stress exclusions (cold stress + heat stress exclusions)
         PlotMap(subset(brick("All_Stress_Excl.tif"), lyr), d, 
                 "All stress exclusion", "Exclusion status", "All_Stress_Excl")
 

@@ -4,6 +4,7 @@
 # needed to run the program.
 # 
 # Log of most recent chnages -----
+# On 4/24/20: Changed the parameter name "chill stress" to "cold stress"
 # On 3/31/20: Fixed issue w/ PEMs showing Dec of previous year
 # On 2/25/20: Minor edits to PEM legend colors so weeks of year are always 
 # assigned the same color
@@ -257,16 +258,16 @@ DailyLoop <- function(cohort, tile_num, template) {
   # Additional rasters - created depending on input setting
   if (exclusions_stressunits) {
     # Create masks for each variable
-    chillmask         <- as.matrix(template)  # Daily chill units mask
-    chillstress       <- as.matrix(template)  # Count of daily chill units
-    chillstressTHRESH  <- as.matrix(template)  # Mask for chillstrs units thres
-    chillstressTHRESH  <- chillstress_threshold # Mask for chillstrs units thres
-    chillunitsCUM     <- as.matrix(template)  # Cumulative chill units
-    chillstressMAX1    <- as.matrix(template)  # Max chill before most die
-    chillstressMAX1    <- chillstress_units_max1 # Max chill before most die
-    chillstressMAX2    <- as.matrix(template)  # Max chill before all die
-    chillstressMAX2    <- chillstress_units_max2 # Max chill before all die
-    chillEXCL         <- as.matrix(template)  # Chill stress exclusion
+    coldmask         <- as.matrix(template)  # Daily cold units mask
+    coldstress       <- as.matrix(template)  # Count of daily cold units
+    coldstressTHRESH  <- as.matrix(template)  # Mask for coldstrs units thres
+    coldstressTHRESH  <- coldstress_threshold # Mask for coldstrs units thres
+    coldunitsCUM     <- as.matrix(template)  # Cumulative cold units
+    coldstressMAX1    <- as.matrix(template)  # Max cold before most die
+    coldstressMAX1    <- coldstress_units_max1 # Max cold before most die
+    coldstressMAX2    <- as.matrix(template)  # Max cold before all die
+    coldstressMAX2    <- coldstress_units_max2 # Max cold before all die
+    coldEXCL         <- as.matrix(template)  # Cold stress exclusion
     heatmask          <- as.matrix(template)  # Daily heat stress units mask
     heatstress        <- as.matrix(template)  # Count of daily heat stress units
     heatstressTHRESH  <- as.matrix(template)  # Mask for heatstress units thres
@@ -406,14 +407,14 @@ DailyLoop <- function(cohort, tile_num, template) {
     # Climate stress exclusions - results will be same for all cohorts, 
     # so just calculate exclusions for cohort 1
     if (exclusions_stressunits) {
-      # Chill stress accumulation
-      # Make today's chill mask and calculate today's chill stress DDs
-      chillmask <- tmin < chillstressTHRESH  
-      chillstress <- chillmask * abs(chillstressTHRESH - tmin) 
-      chillunitsCUM <- chillunitsCUM + chillstress
+      # Cold stress accumulation
+      # Make today's cold mask and calculate today's cold stress DDs
+      coldmask <- tmin < coldstressTHRESH  
+      coldstress <- coldmask * abs(coldstressTHRESH - tmin) 
+      coldunitsCUM <- coldunitsCUM + coldstress
       # ASSUME NEW -2=severe -1=mod 0=none throughout
-      chillEXCL <- Cond(chillunitsCUM >= chillstressMAX2, -2, 
-                        Cond(chillunitsCUM >= chillstressMAX1, -1, 0))
+      coldEXCL <- Cond(coldunitsCUM >= coldstressMAX2, -2, 
+                        Cond(coldunitsCUM >= coldstressMAX1, -1, 0))
       # Heat stress accumulation
       # Make today's heat mask and calculate today's heat stress DDs
       heatmask <- tmax > heatstressTHRESH  
@@ -421,9 +422,9 @@ DailyLoop <- function(cohort, tile_num, template) {
       heatunitsCUM <- heatunitsCUM + heatstress
       heatEXCL <- Cond(heatunitsCUM >= heatstressMAX2, -2, 
                        Cond(heatunitsCUM >= heatstressMAX1, -1, 0))
-      AllEXCL <- Cond((chillEXCL == 0) & (heatEXCL == 0), 0,
-                      Cond((chillEXCL == -1) & (heatEXCL >= -1),-1,
-                           Cond((chillEXCL >= -1) & (heatEXCL == -1), -1, -2)))
+      AllEXCL <- Cond((coldEXCL == 0) & (heatEXCL == 0), 0,
+                      Cond((coldEXCL == -1) & (heatEXCL >= -1),-1,
+                           Cond((coldEXCL >= -1) & (heatEXCL == -1), -1, -2)))
     }
     
     # Calculate pest events
@@ -675,37 +676,37 @@ DailyLoop <- function(cohort, tile_num, template) {
       # and NumGenEXCL, after they are calculated
       if (exclusions_stressunits) {
 
-        # Do the same for chill/heat units and chill/heat exclusion, but just 
+        # Do the same for cold/heat units and cold/heat exclusion, but just 
         # for cohort 1, because results will be same for all cohorts
         if (cohort == 1) {
           # Convert matrices to rasters and put them into a raster brick
-          mat_list3 <- list(chillunitsCUM, chillEXCL, heatunitsCUM,
+          mat_list3 <- list(coldunitsCUM, coldEXCL, heatunitsCUM,
                             heatEXCL, AllEXCL)
           ext <- as.data.frame(as.matrix(extent(template)))
           rast_list3 <- lapply(mat_list3, Mat_to_rast, ext = ext, 
                                template = template)
-          names(rast_list3) <- c("chillunitsCUM_rast", "chillEXCL_rast", 
+          names(rast_list3) <- c("coldunitsCUM_rast", "coldEXCL_rast", 
             "heatunitsCUM_rast", "heatEXCL_rast", "AllEXCL_rast")
           
-          #cat("\n### Adding layers to Chill Stress Units brick for cohort", 
+          #cat("\n### Adding layers to Cold Stress Units brick for cohort", 
           #cohort, ": doy =", sublist[d], "\n", file=daily_logFile, append=TRUE)
-          # Chill stress unit accumulation brick
-          if (!exists("chillunitsCUM_brick")) {
-            chillunitsCUM_brick <- brick(rast_list3$chillunitsCUM_rast, 
+          # Cold stress unit accumulation brick
+          if (!exists("coldunitsCUM_brick")) {
+            coldunitsCUM_brick <- brick(rast_list3$coldunitsCUM_rast, 
                                          crs = crs)
           } else {
-            chillunitsCUM_brick <- addLayer(chillunitsCUM_brick, 
-                                            rast_list3$chillunitsCUM_rast)
+            coldunitsCUM_brick <- addLayer(coldunitsCUM_brick, 
+                                            rast_list3$coldunitsCUM_rast)
           }
           
-          #cat("### Adding layers to Chill Stress Exclusion brick for cohort", 
+          #cat("### Adding layers to Cold Stress Exclusion brick for cohort", 
           #cohort, ": doy =", sublist[d], "\n", file=daily_logFile, append=TRUE)
-          # Chill stress exclusion brick
-          if (!exists("chillEXCL_brick")) {
-            chillEXCL_brick <- brick(rast_list3$chillEXCL_rast, crs = crs)
+          # Cold stress exclusion brick
+          if (!exists("coldEXCL_brick")) {
+            coldEXCL_brick <- brick(rast_list3$coldEXCL_rast, crs = crs)
           } else {
-            chillEXCL_brick <- addLayer(chillEXCL_brick, 
-                                        rast_list3$chillEXCL_rast)
+            coldEXCL_brick <- addLayer(coldEXCL_brick, 
+                                        rast_list3$coldEXCL_rast)
           }
           
           #cat("### Adding layers to Heat Stress Units brick for cohort", 
@@ -729,7 +730,7 @@ DailyLoop <- function(cohort, tile_num, template) {
           
           #cat("### Adding layers to All Stress Exclusion brick for cohort",
           # cohort, ": doy =", sublist[d], file=daily_logFile, append=TRUE)
-          # All stress exclusion brick (chill stress + heat stress exclusions)
+          # All stress exclusion brick (cold stress + heat stress exclusions)
           if (!exists("AllEXCL_brick")) {
             AllEXCL_brick <- brick(rast_list3$AllEXCL_rast, crs = crs)
           } else {
@@ -780,13 +781,13 @@ DailyLoop <- function(cohort, tile_num, template) {
   # If exclusions_stressunits = 1, then save stress unit and exclusions bricks
   if (exclusions_stressunits) {
 
-    # Chill and heat stress unit and exclusion bricks will be the same for 
+    # Cold and heat stress unit and exclusion bricks will be the same for 
     # all cohorts, so take only 1st one
     if (cohort == 1) {
-      stress_excl_brick_list <- c(chillunitsCUM_brick, chillEXCL_brick,
+      stress_excl_brick_list <- c(coldunitsCUM_brick, coldEXCL_brick,
         heatunitsCUM_brick, heatEXCL_brick, AllEXCL_brick)
-      names(stress_excl_brick_list) <- c("Chill_Stress_Units", 
-        "Chill_Stress_Excl", "Heat_Stress_Units", "Heat_Stress_Excl", 
+      names(stress_excl_brick_list) <- c("Cold_Stress_Units", 
+        "Cold_Stress_Excl", "Heat_Stress_Units", "Heat_Stress_Excl", 
         "All_Stress_Excl")
       
       # Save each raster brick product in the list
@@ -798,7 +799,7 @@ DailyLoop <- function(cohort, tile_num, template) {
       }
       
       # Free up memory
-      rm(stress_excl_brick_list, chillunitsCUM_brick, chillEXCL_brick,
+      rm(stress_excl_brick_list, coldunitsCUM_brick, coldEXCL_brick,
          heatunitsCUM_brick, heatEXCL_brick, AllEXCL_brick) 
       
     }
@@ -1332,7 +1333,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       }
     
     #### * Climate exclusion maps ####
-  } else if (grepl("Heat_Stress_Excl|Chill_Stress_Excl|All_Stress_Excl", 
+  } else if (grepl("Heat_Stress_Excl|Cold_Stress_Excl|All_Stress_Excl", 
                    outfl)) {
     # Caption for log file
     log_capt <- paste("-", titl_orig, 
@@ -1748,7 +1749,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
 }
 
 #### (15). PlotMap_stress: summary map plotting - stress units ####
-# Create summary maps (PNG) of heat stress and chill stress units, 
+# Create summary maps (PNG) of heat stress and cold stress units, 
 # with max1 (Stress limit 1) and max2 (Stress limit 2) shown as "countour" lines
 # r = raster input; d = date; max1 = stress limit 1; max2 = stress limit 2;
 # titl = plot title; lgd = legend title; outfl = outfile name
@@ -1967,7 +1968,7 @@ SaveRaster2 <- function(r, outnam, datatype, log_capt) {
 }
 
 #### (19). Stress_Val_Conv #### 
-# Deal with 0 vs non-0 values when plotting chill and heat stress unit rasters
+# Deal with 0 vs non-0 values when plotting cold and heat stress unit rasters
 # Only create bins (0-10, etc...) if there are non-zero values in the data 
 Stress_Val_Conv <- function(x) {
   if (all(x$value == 0)) {
