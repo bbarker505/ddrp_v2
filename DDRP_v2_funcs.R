@@ -3,23 +3,25 @@
 # This file must accompany DDRP_v2.R; it contains the majority of functions 
 # needed to run the program.
 # 
-# Log of most recent chnages -----
-# On 4/24/20: Changed the parameter name "chill stress" to "cold stress"
-# On 3/31/20: Fixed issue w/ PEMs showing Dec of previous year
-# On 2/25/20: Minor edits to PEM legend colors so weeks of year are always 
+# Log of most recent changes -----
+# 6/26/20: Added "StageCount" summary maps, improved map legends, cleaned
+# up PlotMap function
+# 4/24/20: Changed the parameter name "chill stress" to "cold stress"
+# 3/31/20: Fixed issue w/ PEMs showing Dec of previous year
+# 2/25/20: Minor edits to PEM legend colors so weeks of year are always 
 # assigned the same color
-# On 2/18/20: Changed RegCluster back from FORK (to default = PSOCK) due to
+# 2/18/20: Changed RegCluster back from FORK (to default = PSOCK) due to
 # apparent issues on Hopper (cannot open connection issues whenever the
 # process required access to numerous raster files). Updated Cut_interval func.
-# On 2/15/20: Removed EXCl1 and EXCL2 steps for NumGen and Lifestage in 
+# 2/15/20: Removed EXCl1 and EXCL2 steps for NumGen and Lifestage in 
 # Daily Loop function because those raster bricks are not used - it is more
 # memory efficient to calculate them in the Data Processing section
-# On 2/12/20: streamlined Rast_Subs_Excl functions; added Weight_rasts function
-# On 2/7/20: fixed minor bugs in PlotMap function & changed a color
-# On 1/28/20: detect CRS from template data, not hard-code it
-# On 1/23/20: changed RegCluster func; fixed memory issues
+# 2/12/20: streamlined Rast_Subs_Excl functions; added Weight_rasts function
+# 2/7/20: fixed minor bugs in PlotMap function & changed a color
+# 1/28/20: detect CRS from template data, not hard-code it
+# 1/23/20: changed RegCluster func; fixed memory issues
 # 1/3/20: changed naming of clim. suit. output files
-# Modified on 12/9/19: had to fix code in PEM plotting - error for some spp
+# 12/9/19: had to fix code in PEM plotting - error for some spp
 #
 # Issues to resolve: boundary of CONUS doesn't line up completely with raster
 # May not be an issue, but the color key in PEMs is really convoluted - should
@@ -200,27 +202,29 @@ ConvDF <- function(rast) {
 # (e.g., 1-10, 11-20, 21-30) 
 Cut_bins <- function(df, breaks) {
   df$value_orig <- df$value # Keep old value so can sort factors against it
-  # Find max number of digits in the values and cut values into bins, 
-  # remove brackets, parentheses and dashes
-  dig.lab <- nchar(as.character(max(df$value))) 
-  df2 <- df %>% mutate(value = cut_interval(df$value, n = breaks, 
-                                           dig.lab = dig.lab)) 
-  df2$value <- gsub(df2$value, pattern = "[()]|\\[|\\]", 
-                    replacement = "", df2$value)
-  
-  # Remove any numbers following a decimal - it is unclear how to better 
-  # deal with this in the "cut_interval" function (mixing low (below 10)
-  # and high (above 10) numbers results in lower numbers having decimals
-  # due to the dig.lab input needing to be higher)
-  df2$bin1 <- ceiling(as.numeric(str_split_fixed(df2$value, ",", 2)[,1])) 
-  df2$bin2 <- ceiling(as.numeric(str_split_fixed(df2$value, ",", 2)[,2])) 
-  
-  # Paste those values back together and order the bins according to 
-  # the original values to they will plotted in numerical order
-  df2$value <- paste(df2$bin1, df2$bin2, sep = "-")
-  df2$value <- factor(df2$value, 
-                      levels = unique(df2$value[order(df2$value_orig)])) 
+  # Round up max value to highest number divisible by 10
+  df$value[df$value == max(df$value)] <- 10 * ceiling(max(df$value)/10)
+  # Cut values into bins and format results
+  df2 <- df %>% mutate(value = cut_interval(df$value, n = breaks),
+            value = gsub("[()]|\\[|\\]", "", value),
+            bin1 = ceiling(as.numeric(str_split_fixed(value, ",", 2)[,1])),
+            bin2 = ceiling(as.numeric(str_split_fixed(value, ",", 2)[,2])),
+            value = paste(bin1, bin2, sep = "-"))
   return(df2)
+}
+
+# For data potentially ranging from 0 - 100 (Lifestage pop. size), 
+# bins them by groups of 10 always starting at 0 and ending at 100.
+# TO DO: see about combining the two "Cut_bin" functions; simplify
+Cut_bins2 <- function(df) {
+  df$value_orig <- df$value # Keep old value so can sort factors against it
+  df <- mutate(df, value = ifelse(value < 10, "0-10", 
+          ifelse(value < 20, "10-20", ifelse(value < 30, "20-30", 
+          ifelse(value < 40, "30-40", ifelse(value < 50, "40-50", 
+          ifelse(value < 60, "50-60", ifelse(value < 70, "60-70", 
+          ifelse(value < 80, "70-80", ifelse(value < 90, "80-90", 
+          "90-100"))))))))))
+  return(df)
 }
 
 #### (10). DailyLoop: daily loop model ####
@@ -253,7 +257,6 @@ DailyLoop <- function(cohort, tile_num, template) {
   Lifestage <- as.matrix(template) + 1
   # Track voltinism per cell per day, starting at 0
   NumGen <- as.matrix(template)
-  FullGen <- as.matrix(template)
   
   # Additional rasters - created depending on input setting
   if (exclusions_stressunits) {
@@ -616,8 +619,7 @@ DailyLoop <- function(cohort, tile_num, template) {
     #cat("No. gen (max): ", max(NumGen, na.rm=T), "\n", file=daily_logFile, 
     #append=TRUE) 
     
-    # FullGen means it reaches the OW stage
-    FullGen <- FullGen + (progress == 1 & Lifestage == (length(stgorder) - 1)) 
+    # If progress is 1, then there is progression to the next life stage
     Lifestage <- Lifestage + progress
     
     # Reset the DDaccum cells to zero for cells that progressed to next stage
@@ -758,7 +760,8 @@ DailyLoop <- function(cohort, tile_num, template) {
     SaveRaster(DDtotal_brick, cohort, tile_num, "DDtotal", "INT2S")
   }
   
-  rm(Lifestage_brick, NumGen_brick, DDtotal_brick) # Free up memory
+  # Free up memory
+  rm(Lifestage_brick, NumGen_brick, DDtotal_brick)
   
   # If Pest Event Maps are specified (pems = 1), then convert PEM matrices 
   # to rasters and save them
@@ -932,10 +935,12 @@ Mat_to_rast <- function(m, ext, template) {
 # A VERY large function that generates summary plots for all products generated
 # in the DDRP model run
 # r = raster input, d = date, lgd = legend title, outfl = outfile name
+# TO DO: clean up code - remove redundancies
 PlotMap <- function(r, d, titl, lgd, outfl) {
   
   # If data are in raster format, then convert to a data frame
-  if (grepl("NumGen|Adult_byGen|Adult_Excl1_byGen|Adult_Excl2_byGen", outfl)) {
+  if (grepl("NumGen|Adult_byGen|Adult_Excl1_byGen|Adult_Excl2_byGen|StageCount", 
+            outfl)) {
     df <- r # data are already in a data frame
   } else {
     df <- ConvDF(r) # convert raster to data frame
@@ -956,6 +961,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
   if (!grepl("Avg|Earliest", outfl)) {
     titl <- paste(titl, dat, sep = " ")
   }
+  
   if (grepl("PEM", outfl)) {
     start_year <- strtrim(d, 4) # if using 30 yr data, need to trim other chars
     titl <- paste(titl, start_year, sep = " ")
@@ -991,25 +997,21 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     # Create plot separately for rasters where all DDtotal values = 0  
     if (all(df$value == 0)) {
       df$value <- factor(df$value)
-      p <- Base_map(df) +       
-        scale_fill_brewer(palette = "Spectral", direction = -1, 
-                          name = paste0(lgd)) +
-        labs(title = str_wrap(paste(sp, titl), width = titl_width), 
-             subtitle = str_wrap(paste(subtitl), width = subtitl_width)) +
-        theme_map(base_size = base_size) + mytheme
-      
-      # If there are any non-zero values, then cut values into bins and plot
+      # If there are any non-zero values, then cut values into bins
     } else {
       df <- Cut_bins(df, 10)  
-      df$value <- factor(df$value)
-      p <- Base_map(df) +       
-        scale_fill_brewer(palette = "Spectral", direction = -1, 
-                          name = paste0(lgd)) +
-        labs(title = str_wrap(paste(sp, titl), width = titl_width), 
-             subtitle = str_wrap(paste(subtitl), width = subtitl_width)) +
-        theme_map(base_size = base_size) + 
-        mytheme
+      df$value <- factor(df$value, 
+                         levels = unique(df$value[order(df$value_orig)]))
+
     }
+    
+    p <- Base_map(df) +       
+      scale_fill_brewer(palette = "Spectral", direction = -1, 
+                        name = paste0(lgd)) +
+      labs(title = str_wrap(paste(sp, titl), width = titl_width), 
+            subtitle = str_wrap(paste(subtitl), width = subtitl_width)) +
+      theme_map(base_size = base_size) + 
+      mytheme
     
     #### * Lifestage relative pop size ####
   } else if (grepl("OWegg|OWlarvae|OWpupae|OWadult|Egg|Larvae|Pupae|Adult",
@@ -1021,91 +1023,101 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     # nested parallel processes.
     log_capt <- paste("-", titl_orig, "on", format(as.Date(d, "%Y%m%d"), 
                                                       "%m/%d/%Y"))
-    df$value <- round(df$value, 0)
     df$value_orig <- df$value # Keep original values for sorting later
     
-    # Create a plot separately for rasters where all rel. pop size values = 0
-    if (all(df$value == 0)) {
-      df$value <- factor(df$value)
-      cols <- c("mediumblue")
-      p <- Base_map(df) +
-        scale_fill_manual(values = cols, name = paste0(lgd)) +
-        labs(title = str_wrap(paste(sp, titl), width = titl_width), 
-             subtitle = str_wrap(subtitl, width = subtitl_width)) +
-        theme_map(base_size = base_size) + 
-        mytheme
-      
-      # If data include climate exclusions, then format accordingly
-    } else if (exclusions_stressunits) {
-      if (any(df$value_orig > 0)) {
-        # Need to remove -2 and -1 values prior to binning values for plot
-        df2 <- dplyr::filter(df, !value < 0) 
-        df2 <- Cut_bins(df2, 10) 
+    # If data include climate exclusions, then format accordingly
+    # Need to remove -2 and -1 values prior to binning values for plot
+    if (exclusions_stressunits) {
+      if (any(df$value_orig >= 0)) {
+        df2 <- Cut_bins2(dplyr::filter(df, !value < 0))
+ 
+        # Filter out climate stress exclusion values
         excl_df <- df %>% dplyr::filter(value < 0) # Take only -2 and -1 values
         excl_df$value_orig <- excl_df$value
         excl_df <- mutate(excl_df, value = ifelse(value == -2, "excl.-severe", 
-                                           ifelse(value == -1, "excl.-moderate", 
-                                                  value)))
-        # Put exlcusion values and Lifestage rel. pop size (binned) values 
-        # back together, then order by original values so plots in numerical 
-        # order
-        df3 <- rbind(excl_df, df2) 
-        df3$value <- factor(df3$value, 
-                            levels = unique(df3$value[order(df3$value_orig)])) 
-        df <- df3 # Rename data frame
+                      ifelse(value == -1, "excl.-moderate", value)))
         
+        # Put exlcusion values and Lifestage rel. pop size (binned) values back
+        # together, then order by original values so plots in numerical order
+        df3 <- rbind(excl_df, df2) 
+        df <- df3 # Rename data frame
+          
         # If clim. exclusions masks out all non-zero values, then just plot 
         # climate stress exclusions
-      } else if (all(df$value_orig <= 0)) {
-        df <- mutate(df, value = ifelse(value == -2, "excl.-severe", 
-                                 ifelse(value == -1, "excl.-moderate", value)))
-        df$value <- factor(df$value, levels = 
-                             unique(df$value[order(df$value_orig)]))
+      } else if (all(df$value_orig < 0)) {
+          df <- mutate(df, value = ifelse(value == -2, "excl.-severe", 
+                                  ifelse(value == -1, "excl.-moderate", value)))
       }
       
-      # If there are no climate stress exclusions, and relative pop size 
-      # values do not all = 0, then cut data into bins (e.g. 0-10, ...)
+      # If stress values are missing in data, then add a row so the legend
+      # still shows the stress category (Excl1 = excl.-severe, Excl2 = 
+      # excl.-severe and excl.-moderate). Otherwise just recode stress values.
+      if (grepl("Excl1", outfl) & (!(-2 %in% df$value_orig))) {
+        df <- df %>% 
+          add_row(value = "excl.-severe", x = NA, y = NA, value_orig = -2)
+      } else if (grepl("Excl2", outfl)) {
+        if (!(-2 %in% df$value_orig)) {
+          df <- df %>% 
+              add_row(value = "excl.-severe", x = NA, y = NA, value_orig = -2)
+          }
+          if (!(-1 %in% df$value_orig)) {
+            df <- df %>% 
+              add_row(value = "excl.-moderate", x = NA, y = NA, value_orig = -1)
+          }
+        }
+   
+    # If there are no climate stress exclusions
     } else {
-      df <- Cut_bins(df, 10)  
-      df$value <- factor(df$value)
+      df <- Cut_bins2(df)
     }
-    
+  
     # Make legend color keys and assign colors
-    if (any(df$value_orig > 0)) {
-      # First remove values less than 0 (-1 and -2 for clim. stress exclusion),
-      # because want gray shades for those
-      df_noStress <- dplyr::filter(df, value_orig >= 0)
-      df_noStress$value <- factor(df_noStress$value)
-      col_key <- cbind(data.frame("cols" = 
-                        c(colorRampPalette(c("dodgerblue3", "yellow", "red3"))
-                          (length(levels(df_noStress$value))))),
-                       data.frame("value" = c(levels(df_noStress$value))))
-      #col_df <- suppressWarnings(suppressMessages(semi_join(col_key, df,
-      #by = "value"))) # join the colors to the data
+    if (any(df$value_orig >= 0)) {
+      
+      # Generate the color key
+      col_key <- data.frame(cols = c(colorRampPalette(c("dodgerblue3", "yellow", 
+                                                        "red3"))(10)),
+                            value_low = seq(0, 90, 10),
+                            value_high = seq(10, 100, 10))
+      col_key <- col_key %>% 
+        mutate(value = paste(value_low, value_high, sep = "-")) %>%
+        dplyr::select(cols, value)
+      
+      # Create "fake" data rows if data are missing any bins so that key always 
+      # shows 10 bins (0-10, 10-20, 20-30, etc.). Only bins below the max value
+      # in data are kept.
+      missing <- col_key %>% dplyr::select(value) %>%
+        filter(!(value %in% df$value)) %>%
+        filter(value < max(df$value)) %>% 
+        mutate(x = NA, y = NA,
+            value_orig = as.numeric(str_split_fixed(value, "-", 2)[,1], value))
+      df <- rbind(df, missing)
+      df$value <- factor(df$value, levels = 
+                               unique(df$value[order(df$value_orig)]))
       
       # Need to add grayscale cols to color key if there are
       # climate stress exclusions (grayscale colors)
       if (exclusions_stressunits) {
         if (any(df$value == "excl.-moderate")) {
-          col_key <- rbind(data.frame(cols = "gray70", 
+          col_key <- rbind(data.frame(cols = "gray70",
                                       value = "excl.-moderate"), col_key)
         }
         if (any(df$value == "excl.-severe")) {
-          col_key <- rbind(data.frame(cols = "gray40", 
+          col_key <- rbind(data.frame(cols = "gray40",
                                       value = "excl.-severe"), col_key)
         }
       }
       
-      # If all values are <= 0, then just show climate exclusions (grayscale) 
-      # and 0 values (blue)
-    } else if (all(df$value_orig <= 0)) {
-      col_key <- data.frame(cols = c("gray40", "gray70", "mediumblue"), 
+      # If all values are <= 0, then just show climate exclusions (grayscale)
+    } else if (all(df$value_orig < 0)) {
+      col_key <- data.frame(cols = c("gray40", "gray70", "dodgerblue3"), 
                             value = c("excl.-severe", "excl.-moderate", "0"))
       col_key <- semi_join(col_key, df, by = "value") # keep only vals in data
     }
     
     # Convert legend color key to a vector and make the plot
     cols <- setNames(as.character(col_key$cols), col_key$value)
+    
     p <- Base_map(df) +       
       scale_fill_manual(values = cols, name = paste0(lgd)) +
       labs(title = str_wrap(paste(sp, titl), width = titl_width), 
@@ -1115,224 +1127,291 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
 
     #### * Number of generations ####
   } else if (grepl("NumGen|NumGen_Excl1|NumGen_Excl2", outfl)) {
+    
     # Caption for logging file
-      if (grepl("NumGen_Excl1|NumGen_Excl2", outfl)) { 
+    if (grepl("NumGen_Excl1|NumGen_Excl2", outfl)) { 
+      log_capt <- paste("-", str_wrap("Number of gens. with climate stress excl. 
+                                      on", width = 80),
+                        format(as.Date(d, "%Y%m%d"), "%m/%d/%Y"))
+    } else {
+      log_capt <- paste("-", "Numbers of generations on", 
+                        format(as.Date(d, "%Y%m%d"), "%m/%d/%Y"))
+    }
+    
+    # Extract info on how many generations have been completed to date. This
+    # makes it possible to see all completed gens in the legend key even if 
+    # they're not present on a given date.
+    if (any(df$value >= 0)) {
+      all_gens <- c(0:max(df$gen))
+      gens_df <- data.frame("value" = paste(all_gens, "gens."), "x" = NA, 
+                          "y" = NA, "gen" = all_gens)
+    }
+    
+    # If only odd gens are plotted then need to remove even gens.
+    if (odd_gen_map == 1) {
+      gens_df <- gens_df %>% filter(gen %% 2 != 0)
+    }
+    
+    # Format values that are not climate stress exclusions (gen >= 0)
+    # Rel. pop sizes are grouped into 5 bins
+    df2 <- df %>% filter(value >= 0) %>% # Remove clim. stress values
+      mutate(value = ifelse(value < 20, 0, ifelse(value < 40, 20, 
+                            ifelse(value < 60, 40, ifelse(value < 80, 60, 
+                            ifelse(value < 100, 80, value))))),
+             value = paste(gen, "gens.:", value))
+    
+    if (any(df$value >= 0)) {
+      df2 <- rbind(df2, gens_df) # Add on all completed generations to date
+    }
+    
+    # Extract and back in climate stress exclusion values
+    excl_df <- df %>% dplyr::filter(value < 0) %>% 
+      mutate(value = ifelse(value == -2, "excl.-severe", 
+                                ifelse(value == -1, "excl.-moderate", value)))
+    df <- rbind(excl_df, df2)
+    
+    # If stress values are missing in data, then add a row ("fake" data)
+    # so the legend still shows the stress category (Excl1 = excl.-severe, 
+    # Excl2 = excl.-severe and excl.-moderate).
+    if (grepl("Excl1", outfl) & (!("excl.-severe" %in% df$value))) {
+      df <- df %>% add_row(value = "excl.-severe", x = NA, y = NA, gen = -2)
+    } else if (grepl("Excl2", outfl)) {
+      if (!("excl.-severe" %in% df$value)) {
+        df <- df %>% add_row(value = "excl.-severe", x = NA, y = NA, gen = -2)
+      }
+      if (!("excl.-moderate" %in% df$value)) {
+        df <- df %>% 
+          add_row(value = "excl.-moderate", x = NA, y = NA, gen = -1)
+      }
+    }
+    
+    # Order by original values so plots in numerical order
+    df$value <- factor(df$value, 
+                        levels = unique(df$value[order(df$gen)]))
+    
+    # Make the color key for the legend, rel. pop. size in bins of 20 (5 total)
+    # Currently enough colors for 20 generations
+    cols_df <- data.frame("cols" = 
+      c(Colfunc("deepskyblue", "blue3", 5), # Gen 0 
+        Colfunc("orangered", "firebrick4", 5), # Gen 1
+        Colfunc("yellow", "gold3", 5), # Gen 2
+        Colfunc("lightgreen", "darkgreen", 5), # Gen 3
+        Colfunc("magenta", "magenta4", 5), # Gen 4
+        Colfunc("tan1", "darkorange3", 5), # Gen 5
+        Colfunc("cyan", "cyan4", 5), # Gen 6
+        Colfunc("lightpink", "deeppink3", 5), # Gen 7
+        Colfunc("greenyellow", "chartreuse3", 5), # Gen 8
+        Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 9
+        Colfunc("yellow", "darkgoldenrod4", 5), # Gen 10
+        Colfunc("deepskyblue", "blue3", 5), # Gen 11
+        Colfunc("mistyrose", "palevioletred2", 5), # Gen 12
+        Colfunc("seagreen1", "seagreen4", 5), # Gen 13
+        Colfunc("khaki1", "goldenrod1", 5), # Gen 14
+        Colfunc("red", "darkred", 5), # Gen 15
+        Colfunc("lightgreen", "darkgreen", 5), # Gen 16
+        Colfunc("sienna", "sienna4", 5), # Gen 17
+        Colfunc("magenta", "magenta4", 5), # Gen 18
+        Colfunc("cyan", "cyan4", 5), # Gen 19
+        Colfunc("navajowhite1", "navajowhite4", 5))) # Gen 20
+    bins_df <- data.frame(gen = c(rep(0, 5), rep(1, 5), rep(2, 5),
+        rep(3, 5), rep(4, 5), rep(5, 5), rep(6, 5), rep(7, 5), rep(8, 5), 
+        rep(9, 5), rep(10, 5), rep(11, 5), rep(12, 5), rep(13, 5), rep(14, 5),
+        rep(15, 5), rep(16, 5), rep(17, 5), rep(18, 5), rep(19, 5), 
+        rep(20, 5)))
+    col_key <- cbind(cols_df, bins_df) %>% 
+      add_row(cols = c("gray70", "gray40"), gen = c(-1, -2))
+
+    # Remove unneded colors, create bins of 5 to represent rel. pop. size. 
+    # For legend, show only one color for each generation (map will have a 
+    # gradation of this color). This is only done if there are values other
+    # than climate stress exclusions. The color for rel. pop. size = 60 is used.
+    # Add on a color for the "other stages" category (non-adult stages) - this
+    # is coded as -0.1 in order to properly sort it in the legend key.
+    if (any(df$gen >= 0)) {
+      col_key2 <- suppressWarnings(semi_join(col_key, df, by = "gen"))
+      num_gens <- length(unique(col_key2$gen)) # how many unique gens in data?
+      col_key2 <- col_key2 %>% 
+        mutate(value = ifelse(gen >= 0, rep(c(0, 20, 40, 60, 80), 
+                                          num_gens), gen), # 5 bins
+             value = ifelse(gen >= 0, paste(gen, "gens.:", value),
+                            ifelse(gen == -1, "excl.-moderate", 
+                                   ifelse(gen == -2, "excl.-severe", NA))))
+      
+    # For legend, show only one color for each generation 
+    # (map will have a gradation of this color)
+    lgnd_cols <- col_key2 %>% dplyr::filter(grepl(": 60", value))
+    lgnd_cols$value <- str_split_fixed(lgnd_cols$value, 
+                                    pattern = ":", 2)[,1] # Which gen?
+    col_key2 <- rbind(col_key2, lgnd_cols)
+    
+    # Breaks to use in plotting function, so only one shade per gen 
+    # is shown in legend. Need to use str_sort so that the vector is sorted
+    # by generation number, not alphabetically.
+    lgnd_brks <- col_key2 %>% distinct(gen) %>% 
+      arrange(gen) %>% 
+      mutate(gen = ifelse(gen >= 0, paste(gen, "gens."), 
+                          ifelse(gen == -1, "excl.-moderate",
+                                 ifelse(gen == -2, "excl.-severe", gen)))) %>%
+      pull() # Convert to a vector
+
+    # If data only has climate stress values (no bins), create empty data
+    # frame for color key and populate based on stress values present in data.
+    } else {
+      col_key2 <- data.frame(cols = as.character(), value = as.character())
+      lgnd_brks <- df %>% arrange(gen) %>% distinct(value) %>% pull()
+      if (any(df$value == "excl.-moderate")) {
+        col_key2 <- col_key2 %>% 
+          add_row(cols = "gray70", value = "excl.-moderate")
+      }
+      if (any(df$value == "excl.-severe")) {
+        col_key2 <- col_key2 %>% 
+          add_row(cols = "gray40", value = "excl.-severe")
+      }
+      
+    }
+      
+    # Create lgd. color vector and plot
+    cols <- setNames(as.character(col_key2$cols), col_key2$value) 
+    p <- Base_map(df) + 
+      scale_fill_manual(values = cols, breaks = lgnd_brks, 
+                        name = str_wrap(paste0(lgd), width = 15)) +
+      labs(title = str_wrap(paste(sp, titl), width = titl_width), 
+           subtitle = str_wrap(subtitl, width = subtitl_width)) +
+      theme_map(base_size = base_size) + 
+      mytheme
+     
+    #### * Stage count ####
+  } else if (grepl("StageCount", outfl)) {
+    # Caption for logging file
+      if (grepl("StageCount_Excl1|StageCount_Excl2", outfl)) { 
         log_capt <- paste("-", 
-          str_wrap("Number of gens. with climate stress excl. 
-                   on", width = 80),
+          str_wrap("Stage count with climate stress excl. on", width = 80),
           format(as.Date(d, "%Y%m%d"), "%m/%d/%Y"))
       } else {
-        log_capt <- paste("-", "Numbers of generations on", 
+        log_capt <- paste("-", "Stage count on", 
                              format(as.Date(d, "%Y%m%d"), "%m/%d/%Y"))
-      }
-    
-    # If no data besides Gen0, then make entire map gray
-    if (all(df$value == 0)) {
-      df$value <- "0 gens."
-      df$value <- factor(df$value)
-      cols <- "mediumblue"
-      cols <- setNames(as.character(cols), "0 gens.") 
-      # Make the plot
-      p <- Base_map(df) +
-        scale_fill_manual(values = cols, name = str_wrap(paste0(lgd), 
-                                                         width = 15)) +
-        labs(title = str_wrap(paste(sp, titl), width = titl_width), 
-             subtitle = str_wrap(subtitl, width = subtitl_width)) +
-        theme_map(base_size = base_size) + 
-        mytheme
+      }    
       
-      # Else if all values are below 0, then just plot those climate stress
-      # exclusions (-1 and -2)
-    } else if (all(as.numeric(df$value) < 0)) {
-        df <- mutate(df, value = ifelse(value == -2, "excl.-severe", 
-                        ifelse(value == -1, "excl.-moderate", NA)))
-        df <- mutate(df, gen = ifelse(value == "excl.-severe", "excl.-severe", 
-                      ifelse(value == "excl.-moderate", "excl.-moderate", NA)))
-        # Order by original values so plots in numerical order
-        df$value <- factor(df$value, levels = unique(df$value[order(df$value)])) 
-        lgnd_brks <- data.frame("gen" = unique(df$value))
-        lgnd_brks <- sort(dplyr::pull(lgnd_brks, gen)) # Convert df to a vector
+    # Format data if there are climate stress exclusion values
+      if (exclusions_stressunits) {
+        df <- df %>% mutate(value = ifelse(value_orig == -2, "excl.-severe", 
+                        ifelse(value_orig == -1, "excl.-moderate", value)))
         
-        # Assign climate stress exclusion colors (grayscale)
-        if (all(df$value == "excl.-moderate")) {
-          cols <- c("gray70")
-          names(cols) <- c("excl.-moderate")
-        } else if (all(df$value == "excl.-severe")) {
-          cols <- c("gray40")
-          names(cols) <- c("excl.-severe")
-        } else {
-          cols <- c("gray70", "gray40")
-          names(cols) <- c("excl.-moderate", "excl.-severe")
+        if (any(df$value_orig > 0)) {
+          # Need to remove -2 and -1 values prior to binning values for plot
+          df2 <- dplyr::filter(df, !value_orig < 0) 
+          excl_df <- df %>% dplyr::filter(value_orig < 0) # Take only -2 and -1 
+          # Put exlcusion values and stage count values back together
+          df <- rbind(df2, excl_df) # Rename data frame
+        
+          # If clim. exclusions masks out all non-zero values, then just plot 
+          # climate stress exclusions
+        } else if (all(df$value_orig <= 0)) {
+          df <- mutate(df, value = ifelse(value_orig == -2, "excl.-severe", 
+                            ifelse(value_orig == -1, "excl.-moderate", value)))
+            
         }
         
-        # Make the plot
-        p <- Base_map(df) + 
-          scale_fill_manual(values = cols, breaks = lgnd_brks, 
-                            name = str_wrap(paste0(lgd), width = 15)) +
-          labs(title = str_wrap(paste(sp, titl), width = titl_width), 
-               subtitle = str_wrap(subtitl, width = subtitl_width)) +
-          theme_map(base_size = base_size) + 
-          mytheme
-        
-        # If there are any values > 0, need to format data accordingly
-      } else if (any(as.numeric(df$value) > 0)) {
-        # Want to just show non-zero values if they're available, 
-        # so remove remove rows (i.e. generations) with zero values
-        # Anti-join removes those Gen0 values present in other dataframe
-        vals0 <- dplyr::filter(df, value == 0)
-        vals_no0 <- dplyr::filter(df, value != 0)
-        removeDups <- anti_join(vals0, vals_no0, by = c("x", "y")) 
-        df <- rbind(vals_no0, removeDups)
-        
-        # If all values are >= 0
-        if (all(as.numeric(df$value) >= 0)) {
-          df <- mutate(df, value = ifelse(value < 20, 0, ifelse(value < 40, 20, 
-                                  ifelse(value < 60, 40, ifelse(value < 80, 60, 
-                                  ifelse(value < 100, 80, value))))))
-          df$value <- paste0(df$gen, ": ", df$value)
-          df$value <- factor(df$value, 
-                        levels = unique(df$value[order(df$gen_num, df$value)]))
-          df$gen <- factor(df$gen, 
-                             levels = unique(df$gen[order(df$gen_num, df$gen)]))
-          
-        # If data has climate stress exclusion values (AdultExcl1_byGen or 
-        # AdultExcl2_byGen), but not all values are climate stress exclusions
-        } else if (any(as.numeric(df$value) < 0)) {
-          if (any(df$value > 0)) {
-            df2 <- dplyr::filter(df, !value < 0) # need to remove -2 and -1 vals
-            df2 <- mutate(df2, value = ifelse(value < 20, 0, 
-                                       ifelse(value < 40, 20, 
-                                       ifelse(value < 60, 40, 
-                                       ifelse(value < 80, 60, 
-                                       ifelse(value < 100, 80, value))))))
-            df2$value <- paste0(df2$gen, ": ", df2$value)
-
-            # Recode exclusion values
-            excl_df <- df %>% dplyr::filter(value < 0) # take only -2 and -1
-            excl_df <- mutate(excl_df, 
-                              value = ifelse(value == -2, "excl.-severe", 
-                                      ifelse(value == -1, "excl.-moderate", 
-                                             value)))
-            excl_df$value <- factor(excl_df$value)
-            
-            # Recombine the processed data frames
-            # put exlcusion values and rel. pop size (binned) values
-            # back together
-            df3 <- rbind(excl_df, df2) 
-            df <- df3 # rename dataframe
-            df$value <- factor(df$value, 
-                        levels = unique(df$value[order(df$gen_num, df$value)]))
-            df$gen <- factor(df$gen, 
-                             levels = unique(df$gen[order(df$gen_num, df$gen)]))
-            
-            # If all values are 0
-          } else if (all(df$value == 0)) {
-            df <- mutate(df, value = ifelse(value == -2, "excl.-severe", 
-                                     ifelse(value == -1, "excl.-moderate", 
-                                     ifelse(value == 0, "0 gens.", value))))
-            # Order by original values so plots in numerical order
-            df$value <- factor(df$value, 
-                               levels = unique(df$value[order(df$gen_num, 
-                                                              df$value)]))
-            df$gen <- factor(df$gen, 
-                             levels = unique(df$gen[order(df$gen_num, df$gen)]))
-          } 
+        # If stress values are missing in data, then add a row so the legend
+        # still shows the stress category (Excl1 = excl.-severe, Excl2 = 
+        # excl.-severe and excl.-moderate). Otherwise just recode stress values.
+        if (grepl("StageCount_Excl1", outfl) & (!(-2 %in% df$value_orig))) {
+          df <- df %>% 
+            add_row(value = "excl.-severe", gen_stg = factor(-2))
+        } else if (grepl("StageCount_Excl2", outfl)) {
+          if (!(-2 %in% df$value_orig)) {
+            df <- df %>% 
+              add_row(value = "excl.-severe", gen_stg = factor(-2))
+          }
+          if (!(-1 %in% df$value_orig)) {
+            df <- df %>% 
+              add_row(value = "excl.-moderate",  gen_stg = factor(-1))
+          }
         }
+        df <- arrange(df, as.numeric(gen_stg))
+        sorted <- unique(as.numeric(df$gen_stg))
+      }
+      
+      # Define factor levels to order legend key properly
+      df$gen_stg <- factor(df$gen_stg, levels = sorted)
+      
+      # Make the color key for the legend 
+      # Currently enough colors for 20 generations
+      cols_df <- data.frame("cols" = 
+        c(Colfunc("deepskyblue", "blue3", 4), # Gen 0 
+          Colfunc("orangered", "firebrick4", 4), # Gen 1
+          Colfunc("yellow", "gold3", 4), # Gen 2
+          Colfunc("lightgreen", "darkgreen", 4), # Gen 3
+          Colfunc("magenta", "magenta4", 4), # Gen 4
+          Colfunc("tan1", "darkorange3", 4), # Gen 4
+          Colfunc("cyan", "cyan4", 4), # Gen 6
+          Colfunc("lightpink", "deeppink3", 4), # Gen 7
+          Colfunc("greenyellow", "chartreuse3", 4), # Gen 8
+          Colfunc("mediumpurple1", "mediumpurple4", 4), # Gen 9
+          Colfunc("cadetblue1", "deepskyblue4", 4), # Gen 10
+          Colfunc("burlywood1", "burlywood4", 4), # Gen 11
+          Colfunc("mistyrose", "palevioletred2", 4), # Gen 12
+          Colfunc("seagreen1", "seagreen4", 4), # Gen 13
+          Colfunc("khaki1", "goldenrod1", 4), # Gen 14
+          Colfunc("red", "darkred", 4), # Gen 15
+          Colfunc("lightgreen", "darkgreen", 4), # Gen 16
+          Colfunc("sienna", "sienna4", 4), # Gen 17
+          Colfunc("magenta", "magenta4", 4), # Gen 18
+          Colfunc("cyan", "cyan4", 4), # Gen 19
+          Colfunc("navajowhite1", "navajowhite4", 4))) # Gen 20
+        gens_df <- data.frame(gen = c(rep(1, 4), rep(2, 4),
+          rep(3, 4), rep(4, 4), rep(5, 4), rep(6, 4), rep(7, 4), rep(8, 4), 
+          rep(9, 4), rep(10, 4), rep(11, 4), rep(12, 4), rep(13, 4), rep(14, 4),
+          rep(15, 4), rep(16, 4), rep(17, 4), rep(18, 4), rep(19, 4), 
+          rep(20, 4)))
+        gens_df$gen <- sapply(gens_df$gen, function(x) {
+          paste(toOrdinal(x), "gen.") 
+          })
+        gens_df <- rbind(data.frame(gen = c(rep("OW gen.", 4))), gens_df)
         
-        # Make the color key for the legend 
-        # Currently enough colors for 20 generations
-        cols_df <- data.frame("cols" = 
-          c(Colfunc("deepskyblue", "blue3", 5), # Gen 0 
-          Colfunc("orangered", "firebrick4", 5), # Gen 1
-          Colfunc("yellow", "gold3", 5), # Gen 2
-          Colfunc("lightgreen", "darkgreen", 5), # Gen 3
-          Colfunc("magenta", "magenta4", 5), # Gen 4
-          Colfunc("tan1", "darkorange3", 5), # Gen 5
-          Colfunc("cyan", "cyan4", 5), # Gen 6
-          Colfunc("lightpink", "deeppink3", 5), # Gen 7
-          Colfunc("greenyellow", "chartreuse3", 5), # Gen 8
-          Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 9
-          Colfunc("yellow", "darkgoldenrod4", 5), # Gen 10
-          Colfunc("deepskyblue", "blue3", 5), # Gen 11
-          Colfunc("mistyrose", "palevioletred2", 5), # Gen 12
-          Colfunc("seagreen1", "seagreen4", 5), # Gen 13
-          Colfunc("lightblue1", "lightblue4", 5), # Gen 14
-          Colfunc("navajowhite1", "navajowhite4", 5), # Gen 15
-          Colfunc("red", "darkred", 5), # Gen 16
-          Colfunc("lightgreen", "darkgreen", 5), # Gen 17
-          Colfunc("sienna", "sienna4", 5), # Gen 18
-          Colfunc("magenta", "magenta4", 5), # Gen 19
-          Colfunc("cyan", "cyan4", 5))) # Gen 20
-        weeks_df <- data.frame(gen = c(rep(0, 5), rep(1, 5), rep(2, 5),
-          rep(3, 5), rep(4, 5), rep(5, 5), rep(6, 5), rep(7, 5), rep(8, 5), 
-          rep(9, 5), rep(10, 5), rep(11, 5), rep(12, 5), rep(13, 5), rep(14, 5),
-          rep(15, 5), rep(16, 5), rep(17, 5), rep(18, 5), rep(19, 5), 
-          rep(20, 5)))
-        weeks_df$gen <- paste(weeks_df$gen, "gens.")
-        col_key <- cbind(cols_df, weeks_df) # Combing cols to weeks df
-        col_key2 <- suppressWarnings(semi_join(col_key, df, by = "gen"))
+        # Create the color key and named vector of the key
+        #col_key <- cols_df %>% mutate(gen_name = paste0("G", gens_df$gen)) %>%
+        col_key <- cols_df %>% mutate(gen = gens_df$gen) %>%
+          mutate(stg_name = 
+            rep_len(c("eggs", "larvae", "pupae", "adults"), nrow(gens_df))) %>%
+          mutate(value = paste(gen, stg_name)) %>%
+          semi_join(., df, by = "value") %>%
+          dplyr::select(cols, value)
         
-        # Create bins of 5 to represent abundance of adults 
-        # (0 to 100, or just 0 if OWGen)
-        col_key2 <- data.frame(col_key2 %>% group_by(gen) %>% 
-                                 mutate(value = c(0, 20, 40, 60, 80)))
-        col_key2$value <- paste0(col_key2$gen, ": ", col_key2$value)
-        
-        # For legend, show only one color for each generation 
-        # (map will have a gradation of this color)
-        # Color for bin value 20 is used for legend (an intermediate color)
-        leg_cols <- col_key2 %>% dplyr::filter(grepl(": 60", value))
-        leg_cols$value <- str_split_fixed(leg_cols$value, 
-                                          pattern = ":", 2)[,1] # Which gen?
-        # Bind actual colors and legend colors together and create a named 
-        # vector of these
-        col_key2 <- rbind(leg_cols, col_key2)
-        
-        # Create legend breaks to use in plotting function, so only one shade 
-        # per gen is shown in legend.
-        # Create a fake data frame and attach to real data in order to create
-        # a custom legend that shows only gens in the fake on
-        gens_df <- data.frame("value" = unique(df$gen),"x" = NA, "y" = NA, 
-                              "gen" = unique(df$gen), 
-                              "gen_num" = unique(df$gen_num))
-        gens_df <- arrange(gens_df, gen_num)
-        lgnd_brks <- data.frame("gen" = gens_df$gen) # Legend breaks to use
-        
-        # Attach the fake data to the real data, and set factor levels according
-        # to generation numbers to they are sorted correctly in legend
-        df <- rbind(df, gens_df)
+        # Order values by generationa nd life cycle stage order (i.e. egg, 
+        # larvae, pupae, adult) or won't show up correctly in legend key
         df$value <- factor(df$value, 
-                        levels = unique(df$value[order(df$gen_num, df$value)]))
-         
+                  levels = unique(df$value[order(df$gen_stg)]))
+        
         # Add grayscale colors to legend colors if climate stress exclusions
         # Moderate stress exclusion
         if (any(df$value == "excl.-moderate")) {
-          col_key2 <- rbind(data.frame("cols" = "gray70", "gen" = NA, 
-                                       "value" = "excl.-moderate"), col_key2)
-          lgnd_brks <- rbind(
-            data.frame("gen" = c(as.character("excl.-moderate"))), lgnd_brks)
+          col_key <- rbind(data.frame("cols" = "gray70", 
+                                       "value" = "excl.-moderate"), col_key)
         }
         # Severe stress exclusions
         if (any(df$value == "excl.-severe")) {
-          col_key2 <- rbind(data.frame("cols" = "gray40", "gen" = NA, 
-                                       "value" = "excl.-severe"), col_key2)
-          lgnd_brks <- rbind(
-            data.frame("gen" = c(as.character("excl.-severe"))), lgnd_brks)
+          col_key <- rbind(data.frame("cols" = "gray40", 
+                                      "value" = "excl.-severe"), col_key)
         }
         
-        # Convert legend breaks to vector, create lgd. color vector, and plot
-        lgnd_brks <- as.vector(lgnd_brks$gen)
-        cols <- setNames(as.character(col_key2$cols), col_key2$value) 
-        p <- Base_map(df) + 
-          scale_fill_manual(values = cols, breaks = lgnd_brks, 
-                             name = str_wrap(paste0(lgd), width = 15)) +
-          labs(title = str_wrap(paste(sp, titl), width = titl_width), 
-               subtitle = str_wrap(subtitl, width = subtitl_width)) +
-          theme_map(base_size = base_size) + 
-          mytheme
-      }
+      # Make the plot
+      cols <- setNames(as.character(col_key$cols), levels(df$value)) 
+      p <- Base_map(df) + 
+        scale_fill_manual(values = cols, 
+                            name = str_wrap(paste0(lgd), width = 15)) +
+        labs(title = str_wrap(paste(sp, titl), width = titl_width), 
+              subtitle = str_wrap(subtitl, width = subtitl_width)) +
+        theme_map(base_size = base_size) + 
+        mytheme
     
-    #### * Climate exclusion maps ####
+     # Need to adjust number of rows in legend for very small plots or 
+     # the legend will go off the page
+     if (asp < 0.5) {
+       p <- p + guides(fill = guide_legend(nrow = 15))
+     }
+      
+    #### * Climate stress exclusion maps ####
   } else if (grepl("Heat_Stress_Excl|Cold_Stress_Excl|All_Stress_Excl", 
                    outfl)) {
     # Caption for log file
@@ -1358,213 +1437,164 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       theme(legend.text = element_text(size = rel(1.5)), 
             legend.title = element_text(size = rel(1.4), face = "bold"))
       
-    #### * Lifestage (currently adults) w/ NumGen maps ####
+    #### * Lifestage w/ NumGen maps ####
   } else if (grepl("Adult_byGen|Adult_Excl1_byGen|Adult_Excl2_byGen", outfl)) {
     # Caption for log file
     log_capt <- paste("-", "Relative pop. size of adults for each gen. on", 
                       format(as.Date(d, "%Y%m%d"), "%m/%d/%Y"))
-    df$gen <- as.numeric(df$gen) # Generation column must be numeric
     
-    # If all values are climate stress exclusions then output map with only 
-    # these exclusions
-    if (all(df$value < 0)) {
-      df <- mutate(df, value = ifelse(value == -2, "excl.-severe", 
-                               ifelse(value == -1, "excl.-moderate", NA)))
-      df <- mutate(df, gen = ifelse(value == "excl.-severe", "excl.-severe", 
-                             ifelse(value == "excl.-moderate", "excl.-moderate", 
-                                    NA))) 
-      df$value <- factor(df$value, levels = unique(df$value[order(df$value)])) 
-      lgnd_brks <- data.frame("gen" = unique(df$value))
-      lgnd_brks <- sort(dplyr::pull(lgnd_brks, gen)) # convert df to a vector
-      
-      # Assign grayscale colors to climate stress exclusion values
-      if (all(df$value == "excl.-moderate")) {
-        cols <- c("gray70")
-        names(cols) <- c("excl.-moderate")
-      } else if (all(df$value == "excl.-severe")) {
-        cols <- c("gray40")
-        names(cols) <- c("excl.-severe")
-      } else {
-        cols <- c("gray70", "gray40")
-        names(cols) <- c("excl.-moderate", "excl.-severe")
-      }
-      
-      # Make the plot
-      # NEED TO FIX - why is the scaling for these plots different than others? 
-      # Had to adjust scaling of text size to deal with this.. may only be issue 
-      # for some states
-      p <- Base_map(df) + 
-        scale_fill_manual(values = cols, breaks = lgnd_brks, 
-                          name = str_wrap(paste0(lgd), width = 15)) +
-        labs(title = str_wrap(paste(sp, titl), width = titl_width), 
-             subtitle = str_wrap(subtitl, width = subtitl_width)) +
-        theme_map(base_size = base_size) + 
-        mytheme
-      
-    # If all values are 0 then output a "blank" map
-    } else if (all(df$value == 0)) {
-      df$value <- "other stages"
-      df$value <- factor(df$value)
-      p <- Base_map(df) +        
-        scale_fill_manual(values = c("other stages" = "gray90"), 
-                          name = paste0(lgd)) +
-        labs(title = str_wrap(paste(sp, titl), width = titl_width), 
-             subtitle = str_wrap(paste(subtitl), width = subtitl_width)) +
-        theme_map(base_size = base_size) + 
-        mytheme
-      
-      # If values are not all 0, check if climate stress exclusions 
-      # values (-2, -1) are in data
-    } else if (any(df$value > 0)) { 
-      
-      # No climate stress exclusion data (Adult_byGen)
-      if (all(df$value >= 0)) {
-        df <- mutate(df, value = ifelse(value == 0, 0, 
-                                 ifelse(value != 0 & value < 20, 1, 
-                                 ifelse(value < 40, 20, 
-                                 ifelse(value < 60, 40, 
-                                 ifelse(value < 80, 60, 
-                                 ifelse(value < 100, 80, value)))))))
-        df$value <- paste(df$gen, "gens.:", df$value)
-        df <- mutate(df, value = ifelse(grepl(": 0", value), 
-                                        "other stages", value))
-        gens_df <- data.frame("value" = paste(unique(df$gen), "gens."), 
-                              "x" = NA, "y" = NA, "gen" = unique(df$gen))
-        df <- rbind(df, gens_df)
-        df$value <- factor(df$value, levels = 
-                             unique(df$value[order(df$gen, df$value)]))
+    # Extract info on how many generations have been completed to date
+    all_gens <- c(0:max(df$gen))
+    gens_df <- data.frame("value" = paste(all_gens, "gens."), 
+                          "x" = NA, "y" = NA, "gen" = all_gens)
         
-        # If data has climate stress exclusion values (AdultExcl1_byGen or 
-        # AdultExcl2_byGen), then need to format accordingly
-      } else if (any(df$value < 0)) {
-        
-        # If any value is > 0, then format this way
-        if (any(df$value > 0)) {
-          df2 <- dplyr::filter(df, !value < 0) # need to remove -2 and -1 vals
-          df2 <- mutate(df2, value = ifelse(value == 0, 0, 
-                                     ifelse(value != 0 & value < 20, 1, 
-                                     ifelse(value < 40, 20, 
-                                     ifelse(value < 60, 40, 
-                                     ifelse(value < 80, 60, 
-                                     ifelse(value < 100, 80, value)))))))
-          df2$value <- paste(df2$gen, "gens.:", df2$value)
-          df2 <- mutate(df2, value = ifelse(grepl(": 0", value), 
-                                          "other stages", value))
-          gens_df <- data.frame("value" = paste(unique(df2$gen), "gens."), 
-                                "x" = NA, "y" = NA, "gen" = unique(df2$gen))
-          df2 <- rbind(df2, gens_df)
-          df2$value <- factor(df2$value, levels = 
-                               unique(df2$value[order(df2$gen, df2$value)]))          
-          # Recode exclusion values
-          excl_df <- df %>% dplyr::filter(value < 0) # take only -2 and -1 vals
-          excl_df <- mutate(excl_df, value = ifelse(value == -2, "excl.-severe", 
-            ifelse(value == -1, "excl.-moderate", value)))
-          excl_df$gen <- -9
-          excl_df$value <- factor(excl_df$value)
-          
-          # Recombine the processed data frames (puts stress exclusion values 
-          # and Lifestage rel. pop size (binned) values back together
-          df3 <- rbind(excl_df, df2) 
-          df <- df3 # rename dataframe
-          df$gen <- as.numeric(df$gen)
-          
-          # Else if data contains nothing but climate stress exclusion values,
-          # then needs to be formatted differently
-        } else if (all(df$value <= 0)) {
-          df <- mutate(df, value = ifelse(value == 0, "other stages", 
-            ifelse(value == -2, "excl.-severe", 
-            ifelse(value == -1, "excl.-moderate", value))))
-          df$value <- factor(df$value, 
-                             levels = unique(df$value[order(df$value)]))
-          gens_df <- data.frame("value" = paste(unique(df$gen), "gens."), 
-                                "x" = NA, "y" = NA, "gen" = unique(df$gen))
-        }
-      }
-      
-      # Convert df$gen to numeric, or will get errors below
-      df$gen <- as.numeric(df$gen)
-      
-      # Make the color key 
-      # Currently enough for 20 generations
-      cols_df <- data.frame("cols" = 
-          c(Colfunc("deepskyblue", "blue3", 5), # Gen 0 
-          Colfunc("orangered", "firebrick4", 5), # Gen 1
-          Colfunc("yellow", "gold3", 5), # Gen 2
-          Colfunc("lightgreen", "darkgreen", 5), # Gen 3
-          Colfunc("magenta", "magenta4", 5), # Gen 4
-          Colfunc("tan1", "darkorange3", 5), # Gen 5
-          Colfunc("cyan", "cyan4", 5), # Gen 6
-          Colfunc("lightpink", "deeppink3", 5), # Gen 7
-          Colfunc("greenyellow", "chartreuse3", 5), # Gen 8
-          Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 9
-          Colfunc("yellow", "darkgoldenrod4", 5), # Gen 10
-          Colfunc("deepskyblue", "blue3", 5), # Gen 11
-          Colfunc("mistyrose", "palevioletred2", 5), # Gen 12
-          Colfunc("seagreen1", "seagreen4", 5), # Gen 13
-          Colfunc("lightblue1", "lightblue4", 5), # Gen 14
-          Colfunc("navajowhite1", "navajowhite4", 5), # Gen 15
-          Colfunc("red", "darkred", 5), # Gen 16
-          Colfunc("lightgreen", "darkgreen", 5), # Gen 17
-          Colfunc("sienna", "sienna4", 5), # Gen 18
-          Colfunc("magenta", "magenta4", 5), # Gen 19
-          Colfunc("cyan", "cyan4", 5))) # Gen 20
-      weeks_df <- data.frame(gen = c(rep(0, 5), rep(1, 5), rep(2, 5),
-          rep(3, 5), rep(4, 5), rep(5, 5), rep(6, 5), rep(7, 5), rep(8, 5), 
-          rep(9, 5), rep(10, 5), rep(11, 5), rep(12, 5), rep(13, 5), rep(14, 5),
-          rep(15, 5), rep(16, 5), rep(17, 5), rep(18, 5), rep(19, 5), 
-          rep(20, 5)))
-      col_key <- cbind(cols_df, weeks_df) # Combine cols to weeks
-      col_key2 <- semi_join(col_key, df, by = "gen") # Remove unneeded cols
+    # If only odd gens are plotted then need to remove even gens.
+    if (odd_gen_map == 1) {
+      gens_df <- gens_df %>% filter(gen %% 2 != 0)
+    }
+    
+    # Create rows for previous generations so that they appear in the legend
+    # key even if they are absent on the sampling day
+    df <- df %>% mutate(gen = ifelse(value == -2, -2, 
+                                     ifelse(value == -1, -1, gen)))
+    
+    # Format values that are not climate stress exclusions (gen >= 0)
+    df2 <- df %>% filter(gen >= 0) %>% # Remove clim. stress values
+      mutate(value = ifelse(value == 0, 0, # Create bins
+                            ifelse(value != 0 & value < 20, 1, 
+                            ifelse(value < 40, 20, ifelse(value < 60, 40, 
+                            ifelse(value < 80, 60, ifelse(value < 100, 80, 
+                                   value))))))) %>%
+      mutate(value = paste(gen, "gens.:", value)) %>% 
+      mutate(value = ifelse(grepl(": 0", value), "other stages", value))
 
-      # Create bins of 5 to represent abundance of adults 
-      num_gens <- length(unique(col_key2$gen)) # how many unique gens in data?
-      col_key2$value <- rep(c(1, 20, 40, 60, 80), num_gens) # unique gen 5 bins
-      col_key2$value <- paste(col_key2$gen, "gens.:", col_key2$value)
-      col_key2$value <- factor(col_key2$value, 
-                        levels = unique(col_key2$value[order(col_key2$value)])) 
+    df2 <- rbind(df2, gens_df) # Add on all completed generations to date
+        
+    # Extract and back in climate stress exclusion values
+    excl_df <- df %>% dplyr::filter(gen < 0) %>%  
+      mutate(value = ifelse(value == -2, "excl.-severe", 
+                            ifelse(value == -1, "excl.-moderate", value)))
+    df <- rbind(excl_df, df2)
       
-      #col_key2$value <- paste0("Gen", col_key2$gen, ": ", col_key2$value)
-      # Add on a color for the "other stages" category
-      noAdults_col <- data.frame(cols = c("gray90"), gen = NA, 
-                                 value = as.factor("other stages"))
-      col_key2 <- rbind(noAdults_col, col_key2)
+    # If stress values are missing in data (when climate stress exclusions 
+    # are specified), then add a row ("fake" data) so the legend still shows 
+    # the stress category (Excl1 = excl.-severe, 
+    # Excl2 = excl.-severe and excl.-moderate).
+    if (grepl("Excl1", outfl) & (!("excl.-severe" %in% df$value))) {
+      df <- df %>% 
+        add_row(value = "excl.-severe", x = NA, y = NA, gen = -2)
+    } else if (grepl("Excl2", outfl)) {
+      if (!("excl.-severe" %in% df$value)) {
+        df <- df %>% 
+          add_row(value = "excl.-severe", x = NA, y = NA, gen = -2)
+      }
+      if (!("excl.-moderate" %in% df$value)) {
+        df <- df %>% 
+          add_row(value = "excl.-moderate", x = NA, y = NA, gen = -1)
+      }
+    }  
+    
+    # Order formatted values by original values so legend is in correct order
+    df$value <- factor(df$value, 
+                       levels = unique(df$value[order(df$gen, df$value)]))
+    
+    # Make the color key for the legend 
+    # Currently enough colors for 20 generations
+    cols_df <- data.frame("cols" = 
+      c(Colfunc("deepskyblue", "blue3", 5), # Gen 0 
+        Colfunc("orangered", "firebrick4", 5), # Gen 1
+        Colfunc("yellow", "gold3", 5), # Gen 2
+        Colfunc("lightgreen", "darkgreen", 5), # Gen 3
+        Colfunc("magenta", "magenta4", 5), # Gen 4
+        Colfunc("tan1", "darkorange3", 5), # Gen 5
+        Colfunc("cyan", "cyan4", 5), # Gen 6
+        Colfunc("lightpink", "deeppink3", 5), # Gen 7
+        Colfunc("greenyellow", "chartreuse3", 5), # Gen 8
+        Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 9
+        Colfunc("yellow", "darkgoldenrod4", 5), # Gen 10
+        Colfunc("deepskyblue", "blue3", 5), # Gen 11
+        Colfunc("mistyrose", "palevioletred2", 5), # Gen 12
+        Colfunc("seagreen1", "seagreen4", 5), # Gen 13
+        Colfunc("khaki1", "goldenrod1", 5), # Gen 14
+        Colfunc("red", "darkred", 5), # Gen 15
+        Colfunc("lightgreen", "darkgreen", 5), # Gen 16
+        Colfunc("sienna", "sienna4", 5), # Gen 17
+        Colfunc("magenta", "magenta4", 5), # Gen 18
+        Colfunc("cyan", "cyan4", 5), # Gen 19
+        Colfunc("navajowhite1", "navajowhite4", 5))) # Gen 20
+    bins_df <- data.frame(gen = c(rep(0, 5), rep(1, 5), rep(2, 5),
+        rep(3, 5), rep(4, 5), rep(5, 5), rep(6, 5), rep(7, 5), rep(8, 5), 
+        rep(9, 5), rep(10, 5), rep(11, 5), rep(12, 5), rep(13, 5), rep(14, 5),
+        rep(15, 5), rep(16, 5), rep(17, 5), rep(18, 5), rep(19, 5), 
+        rep(20, 5)))
+    col_key <- cbind(cols_df, bins_df) %>% 
+      add_row(cols = c("gray70", "gray40"), gen = c(-1, -2))
+        
+    # Remove unneded colors, create bins of 5 to represent rel. pop. size. 
+    # For legend, show only one color for each generation (map will have a 
+    # gradation of this color). This is only done if there are values other
+    # than climate stress exclusions. The color for rel. pop. size = 60 is used.
+    # Add on a color for the "other stages" category (non-adult stages) - this
+    # is coded as -0.1 in order to properly sort it in the legend key.
+    if (any(df$gen >= 0)) {
+      col_key2 <- semi_join(col_key, df, by = "gen") 
+      num_gens <- length(unique(col_key2$gen)) # how many unique gens in data?
+      col_key2 <- col_key2 %>% 
+        mutate(value = ifelse(gen >= 0, rep(c(1, 20, 40, 60, 80), 
+                                            num_gens), gen), # 5 bins
+               value = ifelse(gen >= 0, paste(gen, "gens.:", value),
+                              ifelse(gen == -1, "excl.-moderate", 
+                              ifelse(gen == -2, "excl.-severe", NA)))) %>%
+        add_row(cols = "gray90", gen = -0.1, value = "other stages")
+      col_key2$value <- factor(col_key2$value, 
+                        levels = unique(col_key2$value[order(col_key2$gen)]))
       
       # For legend, show only one color for each generation 
       # (map will have a gradation of this color)
-      leg_cols <- col_key2 %>% dplyr::filter(grepl(": 60", value))
-      leg_cols$value <- str_split_fixed(leg_cols$value, pattern = ":", 2)[,1]
+      lgnd_cols <- col_key2 %>% dplyr::filter(grepl(": 60", value))
+      lgnd_cols$value <- str_split_fixed(lgnd_cols$value, pattern = ":", 2)[,1]
+      
       # Bind actual colors and legend colors together and create a 
       # named vector of these
-      col_key2 <- rbind(col_key2, leg_cols)
+      col_key2 <- rbind(col_key2, lgnd_cols)
+      
       # Breaks to use in plotting function, so only one shade per gen 
       # is shown in legend. Need to use str_sort so that the vector is sorted
       # by generation number, not alphabetically.
-      lgnd_brks <- str_sort(gens_df$value, numeric  = TRUE)
-      lgnd_brks <- append(c("other stages"), lgnd_brks) # add "other stages"
+      lgnd_brks <- col_key2 %>% distinct(gen) %>% 
+        arrange(gen) %>% 
+        mutate(gen = ifelse(gen >= 0, paste(gen, "gens."), 
+                            ifelse(gen == -1, "excl.-moderate",
+                                   ifelse(gen == -2, "excl.-severe", 
+                                          "other stages")))) %>%
+        pull() # Convert to a vector
+
+      # If data only has climate stress values (no bins), create empty data
+      # frame for color key and populate based on stress values present in data.
+      } else {
+        col_key2 <- data.frame(cols = as.character(), value = as.character())
+        lgnd_brks <- as.character(unique(df$value))
+        if (any(df$value == "excl.-moderate")) {
+          col_key2 <- col_key2 %>% 
+              add_row(cols = "gray70", value = "excl.-moderate")
+        }
+        if (any(df$value == "excl.-severe")) {
+          col_key2 <- col_key2 %>% 
+            add_row(cols = "gray40", value = "excl.-severe")
+        }
       
-      # Add grayscale colors to legend colors if climate stress exclusions
-      if (any(df$value == "excl.-moderate")) {
-        col_key2 <- rbind(data.frame("cols" = "gray70", "gen" = NA, 
-                                     "value" = "excl.-moderate"), col_key2)
-        lgnd_brks <- append("excl.-moderate", lgnd_brks)
-      }
-      if (any(df$value == "excl.-severe")) {
-        col_key2 <- rbind(data.frame("cols" = "gray40", "gen" = NA,
-                                     "value" = "excl.-severe"), col_key2)
-        lgnd_brks <- append("excl.-severe", lgnd_brks)
-      }
-      
-      # Convert colors to a vector and plot
-      cols <- setNames(as.character(col_key2$cols), col_key2$value) 
-      p <- Base_map(df) + 
-        scale_fill_manual(values = cols, breaks = lgnd_brks,
-                          name = str_wrap(paste0(lgd), width = 15)) +
-        labs(title = str_wrap(paste(sp, titl), width = titl_width), 
-             subtitle = str_wrap(subtitl, width = subtitl_width)) +
-        theme_map(base_size = base_size) + 
-        mytheme     
-      }
+    }
     
+    # Create lgd. color vector and plot
+    cols <- setNames(as.character(col_key2$cols), col_key2$value) 
+    p <- Base_map(df) + 
+      scale_fill_manual(values = cols, breaks = lgnd_brks, 
+                        name = str_wrap(paste0(lgd), width = 15)) +
+      labs(title = str_wrap(paste(sp, titl), width = titl_width), 
+           subtitle = str_wrap(subtitl, width = subtitl_width)) +
+      theme_map(base_size = base_size) + 
+      mytheme
+
     #### * Pest Event Maps ####
   } else if (grepl("Avg|Earliest", outfl)) {
     log_capt <- paste("-", titl_orig) # Caption for log file
@@ -1719,9 +1749,9 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       theme_map(base_size = base_size) + 
       mytheme
      
-     # Need to adjust number of rows in legend for very small plots or 
+     # Need to adjust number of rows in legend for small aspect plots or 
      # the legend will go off the page
-     if (asp < 0.5) {
+     if (asp < 0.6) {
        p <- p + guides(fill = guide_legend(nrow = 15))
      }
      
@@ -1764,6 +1794,7 @@ PlotMap_stress <- function(r, d, max1, max2, titl, lgd, outfl) {
     str_wrap("by Oregon State University IPPC USPEST.ORG and USDA-APHIS-PPQ; 
              climate data from OSU PRISM Climate Group",  width = 150))  
   df <- ConvDF(r)
+  df$value_orig <- df$value
   df2 <- Stress_Val_Conv(df) # Properly formats values
   
   # Need to wrap title and subtitle for narrow plots (e.g., RI)
@@ -1794,9 +1825,9 @@ PlotMap_stress <- function(r, d, max1, max2, titl, lgd, outfl) {
       max2_c <- 0 
     } )
   
-  # If all values are 0, then don't include contours 
-  # (must include this code or it will throw an error)
-  if (all(df$value == 0)) {
+  # If all values are 0 or are less than 10 (if stress limit < 10), then don't 
+  # include contours (must include this code or it will throw an error)
+  if (all(df$value == 0 | all(df$value < 10 & all(df$value < max1)))) {
     p <- Base_map(df2) +
       scale_fill_manual(values = c("#5E4FA2"), name = paste0(lgd)) +
       labs(title = str_wrap(paste(sp, titl), width = titl_width), 
@@ -1976,7 +2007,12 @@ Stress_Val_Conv <- function(x) {
   } else {
     x2 <- Cut_bins(x, 10)
   }
-  x2$value <- factor(x2$value)
+  # Need to fix bins if all data are < 10 
+  if (all(x2$value_orig < 10)) {
+    x2$value <- "0-10"
+  }
+  x2$value <- factor(x2$value, 
+                     levels = unique(x2$value[order(x2$value_orig)]))
   return(x2)
 }
 

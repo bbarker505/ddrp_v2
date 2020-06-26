@@ -2,22 +2,26 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
+# 6/26/20: Added "StageCount" raster and map outputs, added map outputs for 
+# current day, improved map legends, added more input param checks 
+#   TO DO: "odd_map_gen" param doesn't work well at small scales becuase 
+#   certain gens may be missing. Maybe address in future versions of DDRP.  
 # On 4/24/20: Changed the parameter name "chill stress" to "cold stress"
 # 3/30/20: fixed typo/missing object in log file text for Adult by Gen
 # 2/17/20: major overhaul of NumGen weighting and Adult by Lifestage analyses. 
 # Experimenting showed that saving large raster bricks to disk may slightly
 # improve run times (compared to holding them in memory). Also removed FORK
 # option in RegCluster because was causing crashes on Hopper.
-# On 2/7/20: modified code for Adult by Gen summary maps so that temp rasters
+# 2/7/20: modified code for Adult by Gen summary maps so that temp rasters
 # are saved to file instead of being held in memory; was resulting in "can not
 # open connection errors" and subsequent run crashes
-# On 1/28/20: detect CRS from template data, not hard-code it
-# On 1/23/20: finished fixing bugs w/ closing connections for clusters, and
+# 1/28/20: detect CRS from template data, not hard-code it
+# 1/23/20: finished fixing bugs w/ closing connections for clusters, and
 # resolving issues with memory
-# On 1/17/20: inc. no. of gens for mapping; increase memory w/ FORK etc.
-# On 1/3/20: fixed bug that was deleting output raster files
-# On 12/16/19: renamed file names and uploaded to GitHub
-# On 11/26/19: fixed bug w/ loading 30 yr climate normals
+# 1/17/20: inc. no. of gens for mapping; increase memory w/ FORK etc.
+# 1/3/20: fixed bug that was deleting output raster files
+# 12/16/19: renamed file names and uploaded to GitHub
+# 11/26/19: fixed bug w/ loading 30 yr climate normals
 
 # DDRP v2
 options(echo = FALSE)
@@ -26,7 +30,7 @@ options(echo = FALSE)
 pkgs <- c("doParallel", "dplyr", "foreach", "ggplot2", "ggthemes", 
           "lubridate", "mapdata", "mgsub", "optparse", "parallel",
           "purrr", "RColorBrewer", "rgdal", "raster", "readr", "sp", "stringr", 
-          "tidyr", "tictoc", "tools")
+          "tidyr", "tictoc", "tools", "toOrdinal")
 ld_pkgs <- lapply(pkgs, library, 
                   lib.loc = "/usr/lib64/R/library/", character.only = TRUE)
 
@@ -136,22 +140,22 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "TABS" # Default species to use
+  spp           <- "CGN" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
   start_year    <- "2020" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap year be kept?
-  region_param  <- "CONUS" # Default REGION to use
+  region_param  <- "AL" # Default REGION to use
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
-  pems          <- 1 # Turn on/off pest event maps
+  pems          <- 0 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 0 # Make maps for egg stage
   mapL          <- 0 # Make maps for larval stage
   mapP          <- 0 # Make maps for pupal stage
-  out_dir       <- "TABS_2020" # Output dir
+  out_dir       <- "CGN_2020" # Output dir
   out_option    <- 1 # Output option category
-  ncohort       <- 7 # Number of cohorts to approximate end of OW stage
+  ncohort       <- 1 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
 }
 
@@ -269,6 +273,46 @@ if (is.numeric(start_year)) {
     cat(start_year, "is not a leap year - ignoring 'keep_leap' parameter\n", 
         file = Model_rlogging, append = TRUE)
   }
+}
+
+# Check for appropriate command line parameters
+# Exit program if no pest event maps have been specified but users want pest
+# event maps (pems = 1)
+if (pems == 1 & !(1 %in% c(mapA, mapE, mapL, mapP))) {
+  cat("\n", str_wrap("No pest event maps (mapA, mapE, mapL, mapP) specified; 
+                     exiting program", width = 80), sep = "", 
+      file = Model_rlogging, append = TRUE)
+  cat("\n", str_wrap("No pest event maps (mapA, mapE, mapL, mapP) specified; 
+          exiting program", width = 80), sep = "")
+  q()
+}
+
+# Exit program if an incorrect sampling frequency has been specified
+if (out_option %in% !c(1, 2, 3, 4, 5, 6)) {
+  cat("Out_option =", out_option, "is unacceptable; exiting program\n", 
+      file = Model_rlogging, append = TRUE)
+  cat("Out_option =", out_option, "is unacceptable; exiting program\n")
+  q() 
+}
+
+# Exit program if ncohort is < 1 (must be at least 1)
+if (ncohort < 1) {
+  cat("\n", str_wrap("Number of cohorts must be greater than or equal to 1; 
+                     exiting program", width = 80), sep = "", 
+      file = Model_rlogging, append = TRUE)
+  cat("\n", str_wrap("Number of cohorts must be greater than or equal to 1; 
+                     exiting program", width = 80), sep = "")
+  q()
+}
+
+# Exit if end day of year is inappropriate
+if (end_doy > 366) {
+  cat("\n", str_wrap(paste("End day of year (end_doy) of", end_doy, "is 
+                     unacceptable; exiting program"), width = 80), sep = "", 
+      file = Model_rlogging, append = TRUE)
+  cat("\n", str_wrap(paste("End day of year (end_doy) of", end_doy, "is 
+                     unacceptable; exiting program"), width = 80), sep = "")
+  q()
 }
 
 # Create a list of days to use for daily loop
@@ -499,26 +543,35 @@ if (out_option == 1) {
   sample_freq <- 2  # Even day maps
 } else if (out_option == 6) {
   sample_freq <- 1 # Daily maps
-  dats2 <- dats
-} else if (out_option %in% !c(1, 2, 3, 4, 5, 6)) {
-  cat("Error: out_option =", out_option, "is unacceptable; exiting program\n", 
-      file = Model_rlogging, append = TRUE)
-  cat("Error: out_option =", out_option, "is unacceptable; exiting program\n")
-  q()  # No reason to keep going if sampling freq is not correctly specified
 }
 
-# Make vector of dates to use when processing results - last day is added too
+# Make vector of dates to use when processing results 
+# The current and last date of year will be sampled as well.
 # Using "unique" will only keep date if it doesn't already occur in vector
 # This happens if the end day of year is a multiple of the sampling frequency 
-# (e.g. 1 to 300, w/ a 30 day sampling frequency)
-dats2 <- unique(c(dats[seq(0, length(dats), sample_freq)], last(dats)))
+# (e.g. 1 to 300, w/ a 30 day sampling frequency), or if the current date falls
+# within the sampling frequency
+dats2 <- sort(as.numeric(unique(c(dats[seq(0, length(dats), sample_freq)], 
+                  strftime(Sys.time(), format = "%Y%m%d"),
+                  last(dats)))))
+dats2 <- as.character(dats2) # Need to be in character format for plotting
 num_dats <- length(dats2) # How many sampled dates? 
 
 # Create vector of days in the sublist that will be sampled (rasters are saved 
-# for those days). Then tack on last day for sampling; using "unique" will only 
-# keep day if it doesn't already occur in vector
-sample_pts <- sublist[seq(0, length(sublist), sample_freq)]
-sample_pts <- unique(c(sample_pts, last(sublist)))
+# for those days), and also tack on the last day in the list. 
+sample_pts <- c(sublist[seq(0, length(sublist), sample_freq)],
+                last(sublist))
+
+# Add the present day if DDRP run is being run for the current year.
+if (start_year == strftime(Sys.time(), format = "%Y")) {
+  today_dat <- strftime(Sys.time(), format = "%Y%m%d")
+  today_doy <- strftime(Sys.time(), format = "%j")
+  sample_pts <- sort(as.numeric(unique(c(sample_pts, today_doy))))
+}
+
+# Keep only unique sampling points (there may be duplicates for example
+# if the present day is already in the list).
+sample_pts <- unique(sample_pts)
 
 # Log file and terminal messages
 cat("Finished loading ", forecast_data, " files for ", 
@@ -695,9 +748,8 @@ tryCatch(
     cat("\nError in Daily Loop\n")
 })
 
-# Free up memory - objects no longer needed
-rm(Assign_extent, DailyLoop, template, tmaxfiles, tmax_list, tminfiles, 
-   tmin_list)
+# Free up memory - delete unneeded large objects
+rm(DailyLoop, template, tmaxfiles, tmax_list, tminfiles, tmin_list)
 
 # Document daily loop execution time
 loop_exectime <- toc(quiet = TRUE)
@@ -809,6 +861,12 @@ if (region_param %in% c("CONUS", "EAST")) {
       }
     }
   }
+  
+  # Remove "_all" from file names - not needed
+  fls <- list.files(pattern = "*tif$")
+  file.rename(from = fls, to = sub(pattern = "_all.tif", 
+                                  replacement = ".tif", fls))
+  
   cat("\nDone deleting tile files\n", file = Model_rlogging, append = TRUE)
   cat("\nDone deleting tile files\n")
 }
@@ -836,17 +894,14 @@ if (asp >= 1.7) {
 } else if (asp >= 1.2 & asp < 1.5) {
   base_size <- 8.5 
   legend_units <- 1.2
-} else if (asp >= 1 & asp < 1.2) {
-  base_size <- 8
+} else if (asp < 1.2 & asp >= 0.6) {
+  base_size <- 7
   legend_units <- 1
-} else if (asp < 1 & asp >= 0.6) {
-  base_size <- 7.5
-  legend_units <- asp
 } else if (asp < 0.6 & asp >= 0.45) {
-  base_size <- 5.5
-  legend_units <- asp
+  base_size <- 5.7
+  legend_units <- 0.6
 } else if (asp < 0.45) {
-  base_size <- 5
+  base_size <- 5.2
   legend_units <- asp
 }
 
@@ -886,16 +941,10 @@ if (exclusions_stressunits) {
   cat("\nSUMMARY MAPS: DDTOTAL\n")
 }
 
-# First rename rasters (may need to modify code so don't need to do this)
-# Not necessary to have words "cohort1" and "all" in the file names
+# Remove "cohort1" from DDtotal and climate stress raster file names
 fls <- list.files(pattern = glob2rx("*Stress_Excl|Stress_Units|DDtotal*tif$"))
 fl_rename <- lapply(fls, function(fl) {
-  if (region_param %in% c("CONUS", "EAST")) {
-    file.rename(from = fl, to = sub(pattern = "_cohort1_all", 
-                                    replacement = "", fl))
-  } else {
-    file.rename(from = fl, to = sub(pattern = "_cohort1", replacement = "", fl))
-  }
+  file.rename(from = fl, to = sub(pattern = "_cohort1", replacement = "", fl))
 })
 
 # Split up the dates into chunks (no chunks have single dates - this results in
@@ -915,7 +964,7 @@ dd_stress_results <- foreach(dat = dats_list, .packages = pkgs,
                          .inorder = TRUE) %dopar% {
   dat_vec <- unname(unlist(dat)) # change to an unnamed date vector
  
-   # Plots results for two dates in the date vector in parallel
+  # Plot results for two dates in the date vector in parallel
   mclapply(dat_vec, function(d) {  
   #for (d in dat_vec) {
       # Get position (layer) of date in raster brick
@@ -961,49 +1010,211 @@ dd_stress_results <- foreach(dat = dats_list, .packages = pkgs,
 stopCluster(cl)
 rm(cl)
 
-# Log file messages
+# Log messages
+if (exclusions_stressunits) {
+  cat("\n\n", str_wrap("Done with DDtotal, climate stress exclusions, and 
+                       climate stress unit maps", width = 80), "\n", sep = "",
+      file = Model_rlogging, append = TRUE)
+  cat("\n", str_wrap("Done with DDtotal, climate stress exclusions, and climate 
+                     stress unit maps", width = 80), "\n", sep = "")
+  cat("\n### ", str_wrap("RASTER AND SUMMARY MAP OUTPUTS: STAGE COUNT W/ 
+                        CLIM. STRESS EXCL. ###", width = 80), sep = "", 
+      file = Model_rlogging, append = TRUE)
+  cat("\nRASTER AND SUMMARY MAP OUTPUTS: STAGE COUNT W/ CLIM. STRESS EXCL.\n")
+} else {
+  cat("\n\nDone with DDtotal maps\n", file = Model_rlogging, append = TRUE) 
+  cat("\n### RASTER AND SUMMARY MAP OUTPUTS: STAGE COUNT ###", 
+      file = Model_rlogging, append = TRUE)
+  cat("\nRASTER AND SUMMARY MAP OUTPUTS: STAGE COUNT\n")
+}
 
-# If no PEMS and no climate stress exclusions, then moving on to Lifestage 
-# analyses 
+#### * Stage count analysis ####
+
+# This analysis produces gridded and summary map outputs that depicts where 
+# each life stage of each generation occurs. Outputs are saved only for the 
+# middle cohort, as most of the population will be in the middle, and depicting
+# the results across all cohorts is too complicated. The maps will show all 
+# stages of each generation that are present on the sampled day. The StageCount 
+# raster is formatted as follows: the number before the decimal is the 
+# generation, and the number after the decimal is the life stage, where 
+# 1 = OW stage and 2-5 is the remaining stages in consecutive order 
+# (e.g. 1 = OWlarvae, 2 = pupae, 3 = adult, 4 = egg, 5 = larvae)
+middle_cohort <- ceiling(ncohort/2)
+Lfstg <- brick(paste0("Lifestage_cohort", middle_cohort, ".tif"))/10
+NumGen <- brick(paste0("NumGen_cohort", middle_cohort, ".tif"))
+StageCt <- overlay(Lfstg, NumGen, fun = function(x, y){ x + y })
+writeRaster(StageCt, file = "StageCount", format = "GTiff",  datatype = "FLT4S", 
+            overwrite = TRUE)
+rm(Lfstg, NumGen, StageCt) # Free up memory
+
+# Create a data frame of life stages spelled out to be used for plotting
+# Stage order is specific to the species, but also need a column for order
+# that stages actually occur (life cycle steps)
+stg_vals <- data.frame("stg_name" = stgorder, 
+                       "stg_num" = as.character(c(1:5))) 
+stg_vals <- stg_vals %>% 
+  mutate(stg_name = gsub("O", "", stg_name),
+         stg_name = mgsub(stg_name, c("E", "L", "P", "A"), 
+                          c("eggs", "larvae", "pupae", "adults")),
+         life_cycle = case_when((stg_name == "eggs") ~ 1, 
+                                (stg_name == "larvae") ~ 2,
+                                (stg_name == "pupae") ~ 3,
+                                (stg_name == "adults") ~ 4)) 
+
+# If climate stress exclusions are specified, then take results from above and 
+# substitute values where the species is under severe stress only with 
+# -1 (Excl1), and areas where the species is both moderate and severe stress 
+# with -1 and -2, respectively (Excl2)
+if (exclusions_stressunits) {
+  # Tack on climate stress data onto stage values data frame
+  stg_vals <- rbind(data.frame(stg_name = c("excl.-moderate", "excl.-severe"), 
+                    life_cycle = c(-1, -2), stg_num = c(-1, -2)), stg_vals)
+  StageCt_excl1 <- brick(Rast_Subs_Excl(brick("StageCount.tif"), "Excl1")) 
+  StageCt_excl2 <- brick(Rast_Subs_Excl(brick("StageCount.tif"), "Excl2"))
+  # Save raster brick results
+  writeRaster(StageCt_excl1, file = "StageCount_Excl1", format = "GTiff",  
+              datatype = "FLT4S", overwrite = TRUE)
+  writeRaster(StageCt_excl2, file = "StageCount_Excl2", format = "GTiff",  
+              datatype = "FLT4S", overwrite = TRUE)
+  rm(StageCt_excl1, StageCt_excl2) # Free up memory
+}
+
+# Make list of Stage Count raster bricks for plotting
+if (exclusions_stressunits) {
+  StageCt_lst <- c("StageCount.tif", "StageCount_Excl1.tif", 
+                   "StageCount_Excl2.tif")
+} else {
+  StageCt_lst <- c("StageCount.tif")
+}
+
+# Generate summary maps for Stage Count results
+# TO DO: see about making this step faster. Increasing parallel processing
+# here (e.g. for going through the StageCt_lst) overloads server too much.
+RegCluster(6)
+
+for (i in 1:length(StageCt_lst)) {
+  fl <- StageCt_lst[i]
+  #for (dat in dats_list) {
+  foreach(dat = dats_list, .packages = pkgs, .inorder = TRUE) %dopar% {
+    dat_vec <- unname(unlist(dat)) # Change to an unnamed date vector
+    
+    # Plots results for dates in the date vector in parallel
+    mclapply(dat_vec, function(d) {  
+    #for (d in dat_vec) {
+      
+      # Get position (layer) of date in raster brick, subset layer from bricks,
+      # convert this layer to a data frame, and mutate data to extract gen 
+      # number and stage number. Then join to the stg_vals data frame to get
+      # the stage name. These operations are done only if the data are not
+      # climate stress exclusion values (i.e. are greater than 0). The stage
+      # order (stg_order) column is for ordering stages correctly in map legend.
+      lyr <- which(dats2 == d)
+      
+      StageCt_df <- ConvDF(brick(StageCt_lst[i])[[lyr]]) %>% 
+        mutate(value_orig = value) %>% # Keep original value (for plotting)
+        mutate(value = round(value, 1)) %>% # Round decimal (must do this)
+        mutate(gen = as.numeric(ifelse(value > 0, 
+                            str_split_fixed(value, "[.]", 2)[,1], value))) %>%
+        mutate(stg_num = as.character(ifelse(value > 0, 
+                              str_split_fixed(value, "[.]", 2)[,2], value))) %>%
+        left_join(., stg_vals, by = "stg_num") 
+          
+      # Format data values for plotting - Gen 0 = OW gen and ordinal values for
+      # other generations (1st, 2nd, 3rd, etc.). This step is pretty slow - 
+      # see if it can be sped up in future version.
+      OW_gen <- StageCt_df %>% filter(gen == 0) %>%
+        mutate(value = paste("OW gen.", stg_name))
+      
+      # Filter out climate stress values to tack on after formatting other data
+      excl_df <- StageCt_df %>% dplyr::filter(value < 0) %>%
+        mutate(gen_stg = ifelse(value == -2, -2, -1))
+          
+      if (any(StageCt_df$gen > 0)) {
+        StageCt_df2 <- StageCt_df %>% 
+          filter(gen > 0) %>%
+          mutate(value = 
+                   map_chr(gen, function(x) paste(toOrdinal(x), "gen."))) %>% 
+          unnest() %>% 
+          mutate(value = paste(value, stg_name)) %>%
+          rbind(OW_gen, .) %>%
+          # Add a "gen_stg" column to order stage count correctly in legend 
+          mutate(gen_stg = paste0(gen, ".", life_cycle))
+      } else {
+        StageCt_df2 <- OW_gen
+      }
+      
+      # Add climate stress values back in
+      if (exclusions_stressunits) {
+        StageCt_df2 <- rbind(StageCt_df2, excl_df)
+      }
+      
+      # Plot the results
+      if (fl == "StageCount.tif") {
+        PlotMap(StageCt_df2, d, "Generation and stage", "Gen. x stage", 
+                "StageCount")
+      } else if (fl == "StageCount_Excl1.tif") {
+        PlotMap(StageCt_df2, d, 
+                "Generation and stage w/ climate stress exclusion", 
+                "Gen. x stage", "StageCount_Excl1")
+      } else if (fl == "StageCount_Excl2.tif") {
+        PlotMap(StageCt_df2, d, 
+                "Generation and stage w/ climate stress exclusion", 
+                "Gen. x stage", "StageCount_Excl2")
+      }
+  
+    }, mc.cores = mc.cores)
+    #}
+  }
+}
+
+stopCluster(cl)
+rm(cl)
+
+rm(StageCt_lst)
+
+# Log file messages
+if (exclusions_stressunits) {
+    cat("\n\n", str_wrap("Done with raster and summary map outputs for 
+      StageCount, StageCount_Excl1, and StageCount_Excl2", width = 80), 
+    file = Model_rlogging, sep = "", append = TRUE) 
+  cat("\n", str_wrap("Done with raster and summary map outputs for StageCount,
+      StageCount_Excl1, and StageCount_Excl2", width = 80), sep = "")
+} else {
+  cat("\n\nDone with raster and summary map outputs for StageCount\n", 
+    file = Model_rlogging, append = TRUE)
+  cat("\nDone with raster and summary map outputs for StageCount\n")
+}
+
+# If no PEMS, then moving on to Lifestage analyses 
 if (!pems & !exclusions_stressunits) {
-  cat("\n\nDone with DDtotal maps\n", file = Model_rlogging, append = TRUE)  
-  cat("\n", str_wrap("### SUMMARY MAPS AND WEIGHTED RASTER OUTPUT: LIFESTAGE 
+  cat("\n", str_wrap("### WEIGHTED RASTER AND SUMMARY MAP OUTPUTS: LIFESTAGE
                      ###", width = 80), "\n\nStages: ", 
       paste(stgorder, collapse = ", "), 
       sep = "", file = Model_rlogging, append = TRUE)
-  cat("\nSUMMARY MAPS AND WEIGHTED RASTER OUTPUT: LIFESTAGE ###","\n\nStages: ",
+  cat("\nWEIGHTED RASTER AND SUMMARY MAP OUTPUTS: LIFESTAGE ###","\n\nStages: ",
       paste(stgorder, collapse = ", "), "\n")
   # If no PEMS but climate stress exclusions, then moving on to Lifestage 
   # analyses that also include climate stress exclusions
 } else if (!pems & exclusions_stressunits) {
-  cat("\n\n", str_wrap("Done with DDtotal, climate stress exclusions, and 
-                       climate stress unit maps", width = 80), "\n", sep = "",
-      file = Model_rlogging, append = TRUE)  
-  cat("\n", str_wrap("### SUMMARY MAPS AND WEIGHTED RASTER OUTPUT:
+  cat("\n\n", str_wrap("### WEIGHTED RASTER AND SUMMARY MAP OUTPUTS:
       LIFESTAGE W/ CLIM. STRESS EXCL. ###", width = 80), "\n\nStages: ", 
       paste(stgorder, collapse = ", "), sep = "",
       file = Model_rlogging, append = TRUE)
-  cat("\n", str_wrap("### SUMMARY MAPS AND WEIGHTED RASTER OUTPUT:
+  cat("\n\n", str_wrap("### WEIGHTED RASTER AND SUMMARY MAP OUTPUTS:
       LIFESTAGE W/ CLIM. STRESS EXCL. ###", width = 80), "\nStages: ", 
       paste(stgorder, collapse = ", "), sep = "")
   # If PEMS but no climate stress exclusions, then conducting PEM analyses
 } else if (pems & !exclusions_stressunits) {
-  cat("\n\nDone with DDtotal summary maps\n\n", 
-      "### SUMMARY MAPS AND RASTER OUTPUT: PEST EVENT MAPS ###", sep = "",
+  cat("\n### RASTER AND SUMMARY MAP OUTPUTS: PEST EVENT MAPS ###", sep = "",
       file = Model_rlogging, append = TRUE)
-  cat("\nDone with DDtotal summary maps\n\n", 
-      "SUMMARY MAPS AND RASTER OUTPUT: PEST EVENT MAPS\n", sep = "")
+  cat("\nRASTER AND SUMMARY MAP OUTPUTS: PEST EVENT MAPS\n", sep = "")
   # If PEMS and climate stress exclusions, then conducting PEM analyses that 
   # also include climate stress exclusions
 } else if (pems & exclusions_stressunits) {
-  cat("\n\n", str_wrap("Done with DDtotal, climate stress exclusions, and 
-                       climate stress unit maps", width = 80), "\n\n", 
-              str_wrap("### SUMMARY MAPS AND RASTER OUTPUT: PEST EVENT MAPS W/
+  cat("\n\n", str_wrap("### RASTER AND SUMMARY MAP OUTPUTS: PEST EVENT MAPS W/
                        CLIMATE STRESS EXCL. ###", width = 80), sep = "",
       file = Model_rlogging, append = TRUE)
-  cat("\n", str_wrap("Done with DDtotal, climate stress exclusions, and climate 
-               stress unit maps", width = 80), "\n\n", 
-      str_wrap("SUMMARY MAPS AND RASTER OUTPUT: PEST EVENT MAPS W/
+  cat("\n\n", str_wrap("RASTER AND SUMMARY MAP OUTPUTS: PEST EVENT MAPS W/
                 CLIMATE STRESS EXCL.\n", width = 80), sep = "")
 }
 
@@ -1048,7 +1259,7 @@ if (pems) {
   foreach(type = PEM_types, .packages = pkgs, 
                         .inorder = FALSE) %dopar% {
   #for (type in PEM_types) {
-   # print(type)
+   #print(type)
     # Find files by type (e.g., "PEMe1" for each cohort) 
     files_by_type <- PEM_files[grep(pattern = type, x = PEM_files, 
                                     fixed = TRUE)] 
@@ -1076,19 +1287,18 @@ if (pems) {
         mutate(., finalLabel = ifelse(type == OW_pem, paste("date of OW gen.", 
                                               OWEventLabel), finalLabel))          
         eventLabel <- paste(eventLabel_df$finalLabel)
+        
       # Remove layers in the PEM stack if they are all NA, and print warning 
       # If this happens, should maybe change cohort emergence params
       zero_sum <- cellStats(PEM_brk, sum)
       pem_na <- PEM_brk[[which(zero_sum == 0)]]
       PEM_brk <- PEM_brk[[which(zero_sum > 0)]]
       if (nlayers(PEM_brk) < ncohort) {
-        cat(str_wrap("WARNING: removed", names(pem_na), 
-            "layer because all values were NA - check emergence parameters \n",
-            width = 80), file = Model_rlogging, append = TRUE)
-        cat("\nWARNING: removed", names(pem_na), "layer because all values 
-            were NA - check emergence parameters \n\n")
+        cat("\n\n", str_wrap(paste0("WARNING: check emergence params - missing 
+            cohorts for ", type), width = 80), sep = "", file = Model_rlogging, 
+            append = TRUE)
       }
-      
+
       # Calc. avg. date of pest event across cohorts
       # Then save raster brick, and create and save summary maps
       avg_PEM <- calc(PEM_brk, fun = function(x, na.rm= TRUE) { 
@@ -1103,6 +1313,8 @@ if (pems) {
       
       # Calc. the earliest date of pest event across cohorts 
       # Then save raster brick, and create and save summary maps
+      # Need to edit event labels if they contain the word "first" because this
+      # is highly redundant (e.g. "earliest first adult emergence")
       min_PEM <- calc(PEM_brk, fun = function(x, na.rm= TRUE) { 
         min(x) 
         })
@@ -1154,20 +1366,20 @@ rm(list = ls(pattern = "PEM|pem_"))
   
 # Log file messages
 if (pems & exclusions_stressunits) {
-  cat("\n\nDone with Pest Event Maps\n\n", str_wrap("### WEIGHTED RASTER OUTPUT 
-      AND SUMMARY MAPS: LIFESTAGE W/ CLIM. STRESS EXCL. ###", width = 80), 
+  cat("\n\nDone with Pest Event Maps\n\n", str_wrap("### WEIGHTED RASTER AND 
+      SUMMARY MAP OUTPUTS: LIFESTAGE W/ CLIM. STRESS EXCL. ###", width = 80), 
       "\n\nStages: ", paste(stgorder, collapse = ", "), sep = "",
       file = Model_rlogging, append = TRUE)  
-  cat("\n\nDone with Pest Event Maps\n\n", str_wrap("WEIGHTED RASTER OUTPUT AND 
-      SUMMARY MAPS: LIFESTAGE W/ CLIM. STRESS EXCL.", width = 80), "\nStages: ",
+  cat("\n\nDone with Pest Event Maps\n\n", str_wrap("WEIGHTED RASTER AND SUMMARY 
+      MAP OUTPUTS: LIFESTAGE W/ CLIM. STRESS EXCL.", width = 80), "\nStages: ",
       paste(stgorder, collapse = ", "), "\n", sep = "")
 } else if (pems & !exclusions_stressunits) {
-  cat("\n\nDone with Pest Event Maps\n\n", str_wrap("### WEIGHTED RASTER OUTPUT 
-      AND SUMMARY MAPS: LIFESTAGE ###", width = 80), "\n\nStages: ", 
+  cat("\n\nDone with Pest Event Maps\n\n", str_wrap("### WEIGHTED RASTER AND  
+      SUMMARY MAP OUTPUTS: LIFESTAGE ###", width = 80), "\n\nStages: ", 
       paste(stgorder, collapse = ", "), sep = "",
       file = Model_rlogging, append = TRUE) 
   cat("\nDone with Pest Event Maps\n\n", 
-      "WEIGHTED RASTER OUTPUT AND SUMMARY MAPS: LIFESTAGE", "\nStages: ",
+      "WEIGHTED RASTER AND SUMMARY MAP OUTPUTS: LIFESTAGE", "\nStages: ",
       paste(stgorder, collapse = ", "), "\n", sep = "")
 }
 
@@ -1202,6 +1414,7 @@ RegCluster(5)
 
 foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
 #for (stg in stage_list) {
+  #print(stg)
   # Get stage number of stage, and then rename to a more descriptive name
   stg_nam <- mgsub(string = stg, pattern = 
                      c("OE", "OL", "OP", "OA", "E", "L", "P", "A"), 
@@ -1280,10 +1493,11 @@ foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
                   "Relative pop. size", 
                   paste0("Misc_output/", stg_nam, "_Excl2"))
       }, mc.cores = 3)
+      
+    rm(Lfstg_wtd_excl2, Lfstg_Excl2_plots) # Free memory
+    
     }
     
-    rm(Lfstg_wtd_excl2, Lfstg_Excl2_plots) # Free memory
-    #gc()
   } 
   
   # If the stage is the non-OW form of the OWstage (i.e., Adult = OWadult,
@@ -1344,7 +1558,7 @@ foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
                   paste0("Misc_output/", stg_nonOW_nam, "_Excl1"))
       }, mc.cores = 3)
       
-      rm(Lfstg_incOW_wtd_excl1, Lfstg_incOW_Excl1_plots) # Free memory
+      rm(Lfstg_incOW_wtd_excl1) # Free memory
       
       # Moderate and severe stress exclusions
       # Lfstg_incOW_wtd_excl2_brk <- Weight_rasts(Lfstg_Excl2_fls, "Lifestage")
@@ -1367,8 +1581,7 @@ foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
                                                "_Excl2"))
       }, mc.cores = 3)
       
-      rm(Lfstg_incOW_wtd_excl2, Lfstg_incOW_Excl2_plots) # Free memory
-      #gc()
+      rm(Lfstg_incOW_wtd_excl2) # Free memory
     }
   }
 }
@@ -1379,25 +1592,24 @@ rm(cl)
 # Delete Lifestage cohort rasters now that they have been processed
 unlink(list.files(pattern = glob2rx(paste0("*Lifestage*cohort*"))))
 
-
 # Log file messages
 if (exclusions_stressunits) {
-  cat("\n\n", str_wrap("Done with weighted raster outputs and summary maps for 
+  cat("\n\n", str_wrap("Done with weighted raster summary map outputs for 
                        Lifestage, Lifestage_Excl1, and Lifestage_Excl2", 
                        width = 80), "\n\n", 
       str_wrap(paste("### WEIGHTED RASTER OUTPUT: NUMGEN WITH CLIMATE STRESS 
                      EXCL. ###"), width = 80), sep = "", 
       file = Model_rlogging, append = TRUE) 
-  cat("\n", str_wrap("Done with weighted raster outputs and summary maps for 
+  cat("\n", str_wrap("Done with weighted raster summary map outputs for 
                        Lifestage, Lifestage_Excl1, and Lifestage_Excl2", 
                        width = 80), "\n", sep = "")
   cat("\nWEIGHTED RASTER OUTPUT: NUMGEN WITH CLIMATE STRESS EXCL.", sep = "")
 } else {
-  cat("\n\n", str_wrap("Done with weighted raster outputs and summary maps for 
+  cat("\n\n", str_wrap("Done with weighted raster summary map outputs for 
                        Lifestage", width = 80), "\n\n", 
       "### WEIGHTED RASTER OUTPUT: NUMGEN ###", sep = "", 
       file = Model_rlogging, append = TRUE) 
-  cat("\n", str_wrap("Done with weighted raster outputs and summary maps for 
+  cat("\n", str_wrap("Done with weighted raster and summary map outputs for 
                        Lifestage", width = 80), "\n\n", 
       "WEIGHTED RASTER OUTPUT: NUMGEN\n", sep = "")
 }
@@ -1422,7 +1634,7 @@ foreach(i = 0:maxgens, .packages = pkgs,
     
     #for (j in 1:length(NumGen_fls)) {
     fl <- NumGen_fls[j]
-    cohort <-  unique(str_split_fixed(fl, "_", 3)[,2])
+    cohort <-  unique(str_split_fixed(fl, "_|[.]", 3)[,2])
     #for (i in 0:maxgens) {
     Gen_brick <- raster::stack(fl) == i
     SaveRaster2(Gen_brick, paste("Gen", i, cohort, sep = "_"), "INT2U", 
@@ -1509,7 +1721,7 @@ if (exclusions_stressunits) {
   cat("\n\n### SUMMARY MAP OUTPUT: NUMGEN WITH CLIMATE STRESS EXCLUSIONS ###", 
       file = Model_rlogging, append = TRUE)
   cat("\n", str_wrap("Done with weighted raster outputs for NumGen, 
-      NumGen_Excl1, and NumGen_Excl2", width = 80))
+      NumGen_Excl1, and NumGen_Excl2", width = 80), sep = "")
   cat("\n\nSUMMARY MAP OUTPUT: NUMGEN WITH CLIMATE STRESS EXCLUSIONS\n")
 } else {
   cat("\n\nDone with weighted raster outputs for NumGen", 
@@ -1582,12 +1794,11 @@ if (exclusions_stressunits) {
                                  "NumGenExcl2_all_merged.grd"))
 }
 
-
 RegCluster(10)
 
 #for (i in 1:length(NumGen_mrgd_fls)) {
 foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
-        .inorder = TRUE) %:%
+     .inorder = TRUE) %:%
   foreach(d = dats_list, .packages = pkgs, .inorder = TRUE) %dopar% {
     
     # Get the brick for the file type
@@ -1610,6 +1821,26 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
       lyr_name <- paste0("\\b[.]", lyr_no, "\\b") # exact match
       brk_sub <- brick(brk_fl)[[grep(lyr_name, names(brick(brk_fl)))]]
       
+      # In order for all completed generations to show up in legend key,
+      # need to extract info from "NumGen_all_merged" brick for the date -
+      # the climate stress values mask out this information. (TO DO: figure
+      # out a way to avoid this in earlier steps?)
+      # If a generation has completed or currently present, then there will be
+      # non-zero values.
+      if (exclusions_stressunits) {
+        NumGen_brk <- brick(NumGen_mrgd_fls[[1]])
+        brk_sub2 <- NumGen_brk[[grep(lyr_name, names(NumGen_brk))]]
+        maxgens <- data.frame(as(brk_sub2, "SpatialPixelsDataFrame")) %>%
+          dplyr::select(-x, -y) %>% 
+          gather() %>% # Combine columns and make column of generation data
+          mutate(gen = str_split_fixed(key, pattern = "_", 2)[,2]) %>% 
+          mutate(gen = sub('\\..*', '', gen)) %>%
+          filter(value > 0) %>% # Remove 0 values (gens not present)
+          distinct(gen) %>% arrange %>% # Returns the gen(s) present on date
+          pull() %>% last()
+        maxgens <- as.numeric(maxgens) # This will be incorporated below
+      }
+        
       # Convert each layer of raster brick to a data frame; add generation num.
       # The add each data frame to a list; these will be merged below.
       NumGen_lyrs_toPlot <- list()
@@ -1618,10 +1849,9 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
         df <- ConvDF(brk_sub[[lyr]])
         # Extract generation number from layers for that date
         lyr_name <- sub('\\..*', '', names(brk_sub[[lyr]]))
-        gen_num <- str_split_fixed(lyr_name, pattern = "_", 2)[,2]
-        df$gen_num <- as.numeric(sub("*\\.[0-9]", "", gen_num))
-        # Replace "Gen1" with "GenOW" if value is 0
-        df$gen <- paste(as.character(df$gen_num), "gens.")
+        gen <- str_split_fixed(lyr_name, pattern = "_", 2)[,2]
+        df$gen <- as.numeric(sub("*\\.[0-9]", "", gen))
+
         # Don't include data if all values are >= 0 - don't want them to be 
         # in legend key
         if (any(df$value > 0)) {
@@ -1642,8 +1872,6 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
       
       if (all(brk_sub_uniqueVals < 0)) {
         mrgd2 <- df
-        mrgd2 <- mutate(mrgd2, gen = ifelse(value == -2, "excl.-severe", 
-                                  ifelse(value == -1, "excl.-moderate", value)))
       }
       
       # Merge data frames in the list - if list is empty b/c all data frames 
@@ -1658,8 +1886,8 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
       
       # Create a layer for OW generation, using dataframe from latest 
       # generation, if present in data
-      if (any(brk_sub_uniqueVals > -1) & any(mrgd$gen == "0 gens.")) {
-        OW <- data.frame(mrgd %>% dplyr::filter(gen == "0 gens."))
+      if (any(brk_sub_uniqueVals > -1) & any(mrgd$gen == 0)) {
+        OW <- data.frame(mrgd %>% dplyr::filter(gen == 0))
       }
       
       # From merged data frame, remove duplicate cells, showing the most 
@@ -1667,8 +1895,8 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
       if (any(brk_sub_uniqueVals > -1) & any(mrgd$value > 0)) {
         noZero <- data.frame(mrgd %>% group_by(x, y) %>% arrange(gen))
         noZero <- dplyr::filter(noZero, !value == 0)
-        if (any(mrgd$gen == "0 gens.")) { 
-          mrgd2 <- rbind(OW,noZero) 
+        if (any(mrgd$gen == 0)) { 
+          mrgd2 <- rbind(OW, noZero) 
         } else {
           mrgd2 <- noZero
         }
@@ -1680,7 +1908,7 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
         if (any(mrgd$value < 0)) {
           excl_vals <- data.frame(mrgd %>% dplyr::filter(value != 0))
           #excl_vals$gen <- "GenOW"
-          if (any(df$gen == "0 gens.")) {
+          if (any(df$gen == 0)) {
             mrgd2 <- rbind(excl_vals, OW) 
           } else {
             mrgd2 <- excl_vals
@@ -1690,16 +1918,22 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
         }
       }
       
-      # If specified, create summary maps for odd generations only - beginning 
-      # for 1st gen (i.e., 1, 3, 5, ..)
-      if (odd_gen_map == 1) { # Should odd gens be plotted instead of all gens?
-        # Extract gen. number
-        mrgd2$gen_val <- as.numeric(gsub("([0-9]+).*$", "\\1", mrgd2$gen))
-        mrgd2$gen_val[is.na(mrgd2$gen_val)] <- 0
-        mrgd2 <- mrgd2 %>% filter(gen_val %% 2 != 0) %>%
-          dplyr::select(-gen_val)
+      # If specified, create summary maps for odd generations only (1, 3, 5, ..)
+      # ISSUE: no generations will be available to plot if even gens only are
+      # present on a given date! This feature is therefore not useful on small
+      # scales, since many gens may be missing at that scale.
+      if (odd_gen_map == 1 & any(mrgd2$gen > 0)) {
+        mrgd2 <- mrgd2[(mrgd2$gen %% 2 != 0),]
       }
       
+      # If the input data are the files with climate stress values, then
+      # the completed number of gens as computed above need to be added back in 
+      if (i %in% c(2, 3)) {
+        mrgd2 <- mrgd2 %>% 
+          add_row(gen = 0:maxgens, value = 0) %>%
+          mutate(gen = ifelse(value == -1, -1, ifelse(value == -2, -2, gen)))
+      }
+        
       # Plot results as long as there are data in "mrgd2" - this data frame
       # will be empty only if "odd_gen_map == 1," and there are no data for 
       # Gen1, Gen3, ... etc. (e.g., if there are only data for GenOW, which 
@@ -1809,7 +2043,7 @@ corrected_NumGen <- foreach(d = 1:length(dats2), .packages = pkgs,
   # Get file and layer names
   NumGen_all_fl <- "NumGen_all_merged.grd"
   all_lyr_names <- names(brick(NumGen_all_fl))
-                              
+                               
   corrected_brick_list <- list()
   
   for (i in 1:length(gens_combo_all)) {
@@ -1890,7 +2124,8 @@ if (exclusions_stressunits) {
                    Adult_Excl1, and Adult_Excl2 raster bricks", width = 80), 
       sep = "", file = Model_rlogging, append = TRUE)
   cat("\n", str_wrap("Assigning a generation number to pixels in the Adult, 
-                   Adult_Excl1, and Adult_Excl2 raster bricks", width = 80))
+                   Adult_Excl1, and Adult_Excl2 raster bricks", width = 80),
+      sep = "")
 } else {
   cat("\n", str_wrap("Assigning a generation number to pixels in the Adult 
                      raster brick", width = 80), sep = "", 
@@ -1925,10 +2160,6 @@ foreach(type = Adult_fl_types, .packages = pkgs,
     NumGen_msk <- raster::subset(brick("NumGen_all_merged.grd"),
     grep(paste0("Gen_", gen, "[.]"),
          names(brick("NumGen_all_merged.grd"))))
-
-    # NumGen_msk <- raster::subset(NumGen_corrected_all, 
-    #                                  grep(paste0("Gen_", gen, "[.]"), 
-    #                                       names(NumGen_corrected_all)))
     
     # Mask out areas in adults raster that do not belong to the gen. of interest
     # Then name each layer by the generation no. and the date
@@ -1948,8 +2179,7 @@ stopCluster(cl)
 rm(cl)
 
 # All done - print messages and stop clusters  
-cat("\nDone\n", 
-file = Model_rlogging, append = TRUE)
+cat("\nDone\n", file = Model_rlogging, append = TRUE)
 cat("\nDone")
   
 # Delete NumGen grids now that they are no longer needed
@@ -1984,17 +2214,21 @@ if (exclusions_stressunits) {
 }
 
 # Generate and save summary plots for "Lifestage by Generation" (currently only
-# doing these for adults)
-RegCluster(5)
+# doing these for adults). TO DO: maybe change way the results are displayed; 
+# a bit confusing to have "other stages" plus gen number, but gen number is 
+# not actually dispalyed on map.
+RegCluster(6)
 
 Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls), 
-  .packages = pkgs, .inorder = TRUE) %dopar% {
+ .packages = pkgs, .inorder = TRUE) %:% 
+  foreach(d = dats2, .packages = pkgs, .inorder = TRUE) %dopar% {
 
-  #for (j in 1:length(Adult_byGen_fls)) {
-  fl_type <- paste0(names(Adult_byGen_fls[j]))
-  for (d in dats2) {
+#for (j in 1:length(Adult_byGen_fls)) {
+ fl_type <- paste0(names(Adult_byGen_fls[j]))
+ # for (d in dats2) {
    #print(d)
-    
+    #print(j)
+
     # Which layer # in the stack corresponds to the date? 
     lyr_no <- which(dats2 == d) 
     lyr_name <- paste0("\\b", lyr_no, "$\\b") # regex for getting exact match
@@ -2005,7 +2239,7 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
     for (f in 1:length(fls)) {
       brk <- brick(fls[[f]])[[grep(lyr_name, names(brick(fls[[f]])))]]
       brk_sub <- addLayer(brk_sub, brk)
-      print(f)
+      #print(f)
     }
     
     # For each stack layer, identify the generation, convert data to a 
@@ -2025,7 +2259,7 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
       if (any(values(r) >= 0 & !is.na(values(r))) | 
           any(values(r) < 0 & !is.na(values(r)))) {
         lyr_df <- ConvDF(r) # convert raster to a data frame
-        lyr_df$gen <- gen
+        lyr_df$gen <- as.numeric(gen)
         colnames(lyr_df)[1] <- "value"
         df_list[[i]] <- lyr_df # add to the list 
       }
@@ -2043,7 +2277,7 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
     # Optional: create summary maps for odd generations only - beginning for 
     # 1st gen (i.e., 1, 3, 5, ..)
     if (odd_gen_map == 1) { # should odd gens be plotted instead of all gens?
-      mrgd <- mrgd %>% filter(as.numeric(gen) %% 2 != 0)
+     mrgd <- mrgd[(mrgd$gen %% 2 != 0),]
     }
     
     # Plot results as long as there are data in "mrgd2" - this data frame will 
@@ -2072,7 +2306,7 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
           file = Model_rlogging, append = TRUE)
     }
   }
-}
+#}
 
 stopCluster(cl)
 rm(cl)
@@ -2091,37 +2325,50 @@ processing_exectime <- (processing_exectime$toc - processing_exectime$tic) / 60
 cat("\n### Done w/ final analyses and map production ###\n", 
     "Run time for analyses and map production = ", 
     round(processing_exectime, digits = 2), " min\n", sep = "", 
-    "Deleting, renaming, and moving some remaining files\n",
+    "Deleting, renaming, and moving miscellaneous files\n",
     file = Model_rlogging, append = TRUE)
 cat("\nDone w/ final analyses and map production\n\n", 
     "Run time for analyses and mapping run time = ", 
     round(processing_exectime, digits = 2),
-    " min\n\n", "Deleting, renaming, and moving some remaining files\n\n", 
+    " min\n\n", "Deleting, renaming, and moving miscellaneous files\n\n", 
     sep = "")
 
-# Rename files for last day of year
-last_dat_fls <- list.files(pattern = glob2rx(paste0("*", last(dats2), "*.png$")))
-new_names <- paste0(spp, "_", last_dat_fls)
-if (length(last_dat_fls) > 0) {
-  invisible(file.rename(last_dat_fls, new_names))  
+#### * Rename final files and move misc files ####
+
+# Rename files for last day of year and Stage Count for current day
+# Don't want to keep Stage Count last day of year, so remove from file list
+last_dat_fls <- list.files(pattern = glob2rx(paste0("*", last(dats2), 
+                                                    "*.png$")))
+stgCnt_remove <- grep(pattern = glob2rx(paste0("*StageCount*", last(dats2), 
+                                              "*")), last_dat_fls, value = TRUE)
+last_dat_fls <- last_dat_fls[!last_dat_fls %in% stgCnt_remove]
+today_dat_fls <- list.files(pattern = glob2rx(paste0("*StageCount*", today_dat, 
+                                                     "*.png$")))
+final_fls <- c(last_dat_fls, today_dat_fls)
+
+# Put species abbreviation in main output file names
+new_names <- paste0(spp, "_", final_fls)
+if (length(final_fls) > 0) {
+  invisible(file.rename(final_fls, new_names))  
 } else {
-  cat("\nNo PNG files for last date - check for errors\n", 
+  cat("\nNo PNG files for final outputs - check for errors\n", 
       file = Model_rlogging, append = TRUE)
-  cat("\nNo PNG files for last date - check for errors\n")
+  cat("\nNo PNG files for final outputs - check for errors\n")
 }
 
+cat("Renamed all final PNG files to include ", spp, " in file name\n", sep = "", 
+    file = Model_rlogging, append = TRUE)
+cat("Renamed all final PNG files to include ", spp, " in file name\n", sep = "")
 
-cat("Renamed all files for last day (", last(dats2), ") to include ", spp, 
-    " in file name\n", sep = "", file = Model_rlogging, append = TRUE)
-cat("Renamed all files for last day (", last(dats2), ") to include ", spp, 
-    " in file name\n", sep = "")
-
-# Move all leftover files without "LBAM" in file name to "Misc_output" 
-# (grep finds the inverse of pattern here - remove directories from file list)
+# Keep final files in main folder. This includes stage count files for other 
+# dates besides the current date, and raster brick and summary maps outputs for 
+# all other products that were not generated on last day of sampling period.
+# All other misc files (w/out spp name in file name) are put in "/Misc_output"
 misc_fls <- grep(list.files(path = output_dir), 
-                 pattern = glob2rx(paste0("*", last(dats2), "*.png$")), 
-                 invert = TRUE, value = TRUE)
+                 pattern = spp, invert = TRUE, value = TRUE) 
 misc_fls <- misc_fls[!(misc_fls %in% c("Misc_output", "Logs_metadata"))]
+
+# Combine lists and move everything to "/Misc_output"
 invisible(file.copy(misc_fls, paste0(output_dir, "/Misc_output/")))
 invisible(file.remove(misc_fls))
 
