@@ -2,7 +2,7 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
-# 6/26/20: Added "StageCount" raster and map outputs, added map outputs for 
+# 6/30/20: Added "StageCount" raster and map outputs, added map outputs for 
 # current day, improved map legends, added more input param checks 
 #   TO DO: "odd_map_gen" param doesn't work well at small scales becuase 
 #   certain gens may be missing. Maybe address in future versions of DDRP.  
@@ -546,14 +546,23 @@ if (out_option == 1) {
 }
 
 # Make vector of dates to use when processing results 
-# The current and last date of year will be sampled as well.
+# The current date will be sampled if it's the current year.
+# The last date of year will always be sampled.
 # Using "unique" will only keep date if it doesn't already occur in vector
 # This happens if the end day of year is a multiple of the sampling frequency 
 # (e.g. 1 to 300, w/ a 30 day sampling frequency), or if the current date falls
 # within the sampling frequency
-dats2 <- sort(as.numeric(unique(c(dats[seq(0, length(dats), sample_freq)], 
-                  strftime(Sys.time(), format = "%Y%m%d"),
-                  last(dats)))))
+today_dat <- strftime(Sys.time(), format = "%Y%m%d")
+current_year <- strftime(Sys.time(), format = "%Y")
+
+if (start_year == current_year) {
+  dats2 <- sort(as.numeric(unique(c(dats[seq(0, length(dats), sample_freq)], 
+                  today_dat, last(dats)))))
+} else {
+   dats2 <- sort(as.numeric(unique(c(dats[seq(0, length(dats), sample_freq)],
+                                      last(dats)))))
+}
+
 dats2 <- as.character(dats2) # Need to be in character format for plotting
 num_dats <- length(dats2) # How many sampled dates? 
 
@@ -563,9 +572,8 @@ sample_pts <- c(sublist[seq(0, length(sublist), sample_freq)],
                 last(sublist))
 
 # Add the present day if DDRP run is being run for the current year.
-if (start_year == strftime(Sys.time(), format = "%Y")) {
-  today_dat <- strftime(Sys.time(), format = "%Y%m%d")
-  today_doy <- strftime(Sys.time(), format = "%j")
+if (start_year == current_year) {
+  today_doy <- strftime(Sys.time(), format = "%j") # Day of year
   sample_pts <- sort(as.numeric(unique(c(sample_pts, today_doy))))
 }
 
@@ -2335,18 +2343,26 @@ cat("\nDone w/ final analyses and map production\n\n",
 
 #### * Rename final files and move misc files ####
 
-# Rename files for last day of year and Stage Count for current day
-# Don't want to keep Stage Count last day of year, so remove from file list
+# Create list of files that will be kept in the main output folder. These 
+# include outputs for the last day of the sampled time period, with the 
+# exception of Stage Count outputs.
 last_dat_fls <- list.files(pattern = glob2rx(paste0("*", last(dats2), 
                                                     "*.png$")))
 stgCnt_remove <- grep(pattern = glob2rx(paste0("*StageCount*", last(dats2), 
                                               "*")), last_dat_fls, value = TRUE)
 last_dat_fls <- last_dat_fls[!last_dat_fls %in% stgCnt_remove]
-today_dat_fls <- list.files(pattern = glob2rx(paste0("*StageCount*", today_dat, 
-                                                     "*.png$")))
-final_fls <- c(last_dat_fls, today_dat_fls)
 
-# Put species abbreviation in main output file names
+# If current year was sampled then keep Stage Count outfile for the current day 
+# in the main output folder. Then make a list of final output files to rename.
+if (start_year == current_year) {
+  today_dat_fls <- list.files(pattern = glob2rx(paste0("*StageCount*", 
+                                                       today_dat, "*.png$")))
+  final_fls <- c(last_dat_fls, today_dat_fls)
+} else {
+  final_fls <- c(last_dat_fls)
+}
+
+# Put species abbreviation in final output files (rename)
 new_names <- paste0(spp, "_", final_fls)
 if (length(final_fls) > 0) {
   invisible(file.rename(final_fls, new_names))  
@@ -2360,19 +2376,14 @@ cat("Renamed all final PNG files to include ", spp, " in file name\n", sep = "",
     file = Model_rlogging, append = TRUE)
 cat("Renamed all final PNG files to include ", spp, " in file name\n", sep = "")
 
-# Keep final files in main folder. This includes stage count files for other 
-# dates besides the current date, and raster brick and summary maps outputs for 
-# all other products that were not generated on last day of sampling period.
-# All other misc files (w/out spp name in file name) are put in "/Misc_output"
+# All other misc files (w/out spp name in file name) are moved to "/Misc_output"
 misc_fls <- grep(list.files(path = output_dir), 
                  pattern = spp, invert = TRUE, value = TRUE) 
 misc_fls <- misc_fls[!(misc_fls %in% c("Misc_output", "Logs_metadata"))]
-
-# Combine lists and move everything to "/Misc_output"
 invisible(file.copy(misc_fls, paste0(output_dir, "/Misc_output/")))
 invisible(file.remove(misc_fls))
 
-# Wrap up log file and report run time for entire model
+# Wrap up log file and report time for entire model run
 cat("\nMODEL RUN DONE\n", file = Model_rlogging, append = TRUE)
 cat("\nMODEL RUN DONE\n")
 total_exectime <- toc(quiet = TRUE) # Execution time for entire run
