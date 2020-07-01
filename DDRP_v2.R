@@ -2,7 +2,7 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
-# 6/30/20: Added "StageCount" raster and map outputs, added map outputs for 
+# 7/1/20: Added "StageCount" raster and map outputs, added map outputs for 
 # current day, improved map legends, added more input param checks 
 #   TO DO: "odd_map_gen" param doesn't work well at small scales becuase 
 #   certain gens may be missing. Maybe address in future versions of DDRP.  
@@ -140,20 +140,20 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "CGN" # Default species to use
+  spp           <- "TABS" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
-  start_year    <- "2020" # Year to use
+  start_year    <- "2012" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap year be kept?
-  region_param  <- "AL" # Default REGION to use
+  region_param  <- "CONUS" # Default REGION to use
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
   pems          <- 0 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 0 # Make maps for egg stage
   mapL          <- 0 # Make maps for larval stage
   mapP          <- 0 # Make maps for pupal stage
-  out_dir       <- "CGN_2020" # Output dir
+  out_dir       <- "TABS_2012" # Output dir
   out_option    <- 1 # Output option category
   ncohort       <- 1 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
@@ -245,7 +245,7 @@ if (file.exists(species_params)) {
 if (!grepl("[A-z]", start_year)) {
   start_year <- as.numeric(start_year)
 } else {
-  start_year <- "daily30yr" # currently where 30yr normal are - may need to chng
+  start_year <- "daily30yr" # current loc. of 30yr normals - may need to change
 }
 
 # Set up start and stop day of year depending on whether it's a leap year or
@@ -505,8 +505,10 @@ tminfiles <- list.files(path = prism_dir,
                                                  start_year, "*.bil$*")), 
                         all.files = FALSE, full.names = TRUE, recursive = TRUE)
 if (length(tminfiles) == 0) {
-  cat("Error in finding tmin files - check dir\n", 
+  cat("Could not find tmin files - exiting program\n", 
       file = Model_rlogging, append = TRUE) 
+  cat("Could not find tmin files - exiting program\n") 
+  q()
 }
 
 tminfiles <- ExtractBestPRISM(tminfiles, forecast_data, 
@@ -518,8 +520,10 @@ tmaxfiles <- list.files(path = prism_dir,
                         all.files = FALSE, full.names = TRUE, recursive = TRUE)
 
 if (length(tmaxfiles) == 0) {
-  cat("Error in finding tmax files - check dir\n", 
+  cat("Could not find tmax files - exiting program\n", 
       file = Model_rlogging, append = TRUE) 
+  cat("Could not find tmax files - exiting program\n") 
+  q()
 }
 
 tmaxfiles <- ExtractBestPRISM(tmaxfiles, forecast_data, 
@@ -1709,8 +1713,7 @@ foreach(i = 1:length(gen_fls_lst), .packages = pkgs,
     rm(NumGen_wtd_excl2)
     cat("Finished NumGen_wtd_excl2 - gen", gen, "\n")
   }
-    
-  #gc()
+
 }
 
 stopCluster(cl)
@@ -1866,7 +1869,6 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
           NumGen_lyrs_toPlot[[lyr]] <- df
         }
         
-        #j <- j + 1
       }
       
       # Format data if pops of NO gens are present (no value > 0) AND there are 
