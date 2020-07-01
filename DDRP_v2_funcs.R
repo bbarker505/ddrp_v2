@@ -1199,20 +1199,20 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         Colfunc("magenta", "magenta4", 5), # Gen 4
         Colfunc("tan1", "darkorange3", 5), # Gen 5
         Colfunc("cyan", "cyan4", 5), # Gen 6
-        Colfunc("lightpink", "deeppink3", 5), # Gen 7
-        Colfunc("greenyellow", "chartreuse3", 5), # Gen 8
-        Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 9
-        Colfunc("yellow", "darkgoldenrod4", 5), # Gen 10
-        Colfunc("deepskyblue", "blue3", 5), # Gen 11
-        Colfunc("mistyrose", "palevioletred2", 5), # Gen 12
-        Colfunc("seagreen1", "seagreen4", 5), # Gen 13
-        Colfunc("khaki1", "goldenrod1", 5), # Gen 14
-        Colfunc("red", "darkred", 5), # Gen 15
+        Colfunc("greenyellow", "chartreuse3", 5), # Gen 7
+        Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 8
+        Colfunc("lightgoldenrod", "darkgoldenrod4", 5), # Gen 9
+        Colfunc("cadetblue1", "cornflowerblue", 5), # Gen 10
+        Colfunc("mistyrose", "palevioletred2", 5), # Gen 11
+        Colfunc("seagreen1", "seagreen4", 5), # Gen 12
+        Colfunc("lemonchiffon", "gold", 5), # Gen 13
+        Colfunc("red", "darkred", 5), # Gen 14
+        Colfunc("lightpink", "deeppink3", 5), # Gen 15
         Colfunc("lightgreen", "darkgreen", 5), # Gen 16
         Colfunc("sienna", "sienna4", 5), # Gen 17
-        Colfunc("magenta", "magenta4", 5), # Gen 18
-        Colfunc("cyan", "cyan4", 5), # Gen 19
-        Colfunc("navajowhite1", "navajowhite4", 5))) # Gen 20
+        Colfunc("maroon1", "maroon4", 5), # Gen 18
+        Colfunc("royalblue1", "royalblue4", 5), # Gen 19
+        Colfunc("thistle1", "thistle4", 5))) # Gen 20
     bins_df <- data.frame(gen = c(rep(0, 5), rep(1, 5), rep(2, 5),
         rep(3, 5), rep(4, 5), rep(5, 5), rep(6, 5), rep(7, 5), rep(8, 5), 
         rep(9, 5), rep(10, 5), rep(11, 5), rep(12, 5), rep(13, 5), rep(14, 5),
@@ -1343,22 +1343,22 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
           Colfunc("yellow", "gold3", 4), # Gen 2
           Colfunc("lightgreen", "darkgreen", 4), # Gen 3
           Colfunc("magenta", "magenta4", 4), # Gen 4
-          Colfunc("tan1", "darkorange3", 4), # Gen 4
+          Colfunc("tan1", "darkorange3", 4), # Gen 5
           Colfunc("cyan", "cyan4", 4), # Gen 6
-          Colfunc("lightpink", "deeppink3", 4), # Gen 7
-          Colfunc("greenyellow", "chartreuse3", 4), # Gen 8
-          Colfunc("mediumpurple1", "mediumpurple4", 4), # Gen 9
-          Colfunc("cadetblue1", "deepskyblue4", 4), # Gen 10
-          Colfunc("burlywood1", "burlywood4", 4), # Gen 11
-          Colfunc("mistyrose", "palevioletred2", 4), # Gen 12
-          Colfunc("seagreen1", "seagreen4", 4), # Gen 13
-          Colfunc("khaki1", "goldenrod1", 4), # Gen 14
-          Colfunc("red", "darkred", 4), # Gen 15
+          Colfunc("greenyellow", "chartreuse3", 4), # Gen 7
+          Colfunc("mediumpurple1", "mediumpurple4", 4), # Gen 8
+          Colfunc("lightgoldenrod", "darkgoldenrod4", 4), # Gen 9
+          Colfunc("cadetblue1", "cornflowerblue", 4), # Gen 10
+          Colfunc("mistyrose", "palevioletred2", 4), # Gen 11
+          Colfunc("seagreen1", "seagreen4", 4), # Gen 12
+          Colfunc("lemonchiffon", "gold", 4), # Gen 13
+          Colfunc("red", "darkred", 4), # Gen 14
+          Colfunc("lightpink", "deeppink3", 4), # Gen 15
           Colfunc("lightgreen", "darkgreen", 4), # Gen 16
           Colfunc("sienna", "sienna4", 4), # Gen 17
-          Colfunc("magenta", "magenta4", 4), # Gen 18
-          Colfunc("cyan", "cyan4", 4), # Gen 19
-          Colfunc("navajowhite1", "navajowhite4", 4))) # Gen 20
+          Colfunc("maroon1", "maroon4", 4), # Gen 18
+          Colfunc("royalblue1", "royalblue4", 4), # Gen 19
+          Colfunc("thistle1", "thistle4", 4))) # Gen 20
         gens_df <- data.frame(gen = c(rep(1, 4), rep(2, 4),
           rep(3, 4), rep(4, 4), rep(5, 4), rep(6, 4), rep(7, 4), rep(8, 4), 
           rep(9, 4), rep(10, 4), rep(11, 4), rep(12, 4), rep(13, 4), rep(14, 4),
@@ -1508,21 +1508,21 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         Colfunc("magenta", "magenta4", 5), # Gen 4
         Colfunc("tan1", "darkorange3", 5), # Gen 5
         Colfunc("cyan", "cyan4", 5), # Gen 6
-        Colfunc("lightpink", "deeppink3", 5), # Gen 7
-        Colfunc("greenyellow", "chartreuse3", 5), # Gen 8
-        Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 9
-        Colfunc("yellow", "darkgoldenrod4", 5), # Gen 10
-        Colfunc("deepskyblue", "blue3", 5), # Gen 11
-        Colfunc("mistyrose", "palevioletred2", 5), # Gen 12
-        Colfunc("seagreen1", "seagreen4", 5), # Gen 13
-        Colfunc("khaki1", "goldenrod1", 5), # Gen 14
-        Colfunc("red", "darkred", 5), # Gen 15
+        Colfunc("greenyellow", "chartreuse3", 5), # Gen 7
+        Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 8
+        Colfunc("lightgoldenrod", "darkgoldenrod4", 5), # Gen 9
+        Colfunc("cadetblue1", "cornflowerblue", 5), # Gen 10
+        Colfunc("mistyrose", "palevioletred2", 5), # Gen 11
+        Colfunc("seagreen1", "seagreen4", 5), # Gen 12
+        Colfunc("lemonchiffon", "gold", 5), # Gen 13
+        Colfunc("red", "darkred", 5), # Gen 14
+        Colfunc("lightpink", "deeppink3", 5), # Gen 15
         Colfunc("lightgreen", "darkgreen", 5), # Gen 16
         Colfunc("sienna", "sienna4", 5), # Gen 17
-        Colfunc("magenta", "magenta4", 5), # Gen 18
-        Colfunc("cyan", "cyan4", 5), # Gen 19
-        Colfunc("navajowhite1", "navajowhite4", 5))) # Gen 20
-    bins_df <- data.frame(gen = c(rep(0, 5), rep(1, 5), rep(2, 5),
+        Colfunc("maroon1", "maroon4", 5), # Gen 18
+        Colfunc("royalblue1", "royalblue4", 5), # Gen 19
+        Colfunc("thistle1", "thistle4", 5))) # Gen 20    
+     bins_df <- data.frame(gen = c(rep(0, 5), rep(1, 5), rep(2, 5),
         rep(3, 5), rep(4, 5), rep(5, 5), rep(6, 5), rep(7, 5), rep(8, 5), 
         rep(9, 5), rep(10, 5), rep(11, 5), rep(12, 5), rep(13, 5), rep(14, 5),
         rep(15, 5), rep(16, 5), rep(17, 5), rep(18, 5), rep(19, 5), 
