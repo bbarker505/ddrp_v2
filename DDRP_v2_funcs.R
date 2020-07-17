@@ -4,6 +4,7 @@
 # needed to run the program.
 # 
 # Log of most recent changes -----
+# 7/16/20: Improved some legend colors to better discern categories
 # 6/26/20: Added "StageCount" summary maps, improved map legends, cleaned
 # up PlotMap function
 # 4/24/20: Changed the parameter name "chill stress" to "cold stress"
@@ -117,7 +118,7 @@ Assign_extent <- function(region_param = paste0(region_param)) {
 Base_map <- function(df) {
   p <- ggplot(states, aes(x = long, y = lat)) + 
     geom_raster(data = df, aes(x = x, y = y, fill = value)) + 
-    geom_path(aes(group = group), color = "gray20", lwd = 0.4) +
+    geom_path(aes(group = group), color = "black", lwd = 0.4) +
     #theme_map(base_size = base_size) +
     coord_quickmap(xlim = c(REGION@xmin, REGION@xmax), 
                    ylim = c(REGION@ymin, REGION@ymax), expand = FALSE) 
@@ -1103,14 +1104,14 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
                                       value = "excl.-moderate"), col_key)
         }
         if (any(df$value == "excl.-severe")) {
-          col_key <- rbind(data.frame(cols = "gray40",
+          col_key <- rbind(data.frame(cols = "gray30",
                                       value = "excl.-severe"), col_key)
         }
       }
       
       # If all values are <= 0, then just show climate exclusions (grayscale)
     } else if (all(df$value_orig < 0)) {
-      col_key <- data.frame(cols = c("gray40", "gray70", "dodgerblue3"), 
+      col_key <- data.frame(cols = c("gray30", "gray70", "dodgerblue3"), 
                             value = c("excl.-severe", "excl.-moderate", "0"))
       col_key <- semi_join(col_key, df, by = "value") # keep only vals in data
     }
@@ -1199,9 +1200,9 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         Colfunc("magenta", "magenta4", 5), # Gen 4
         Colfunc("tan1", "darkorange3", 5), # Gen 5
         Colfunc("cyan", "cyan4", 5), # Gen 6
-        Colfunc("greenyellow", "chartreuse3", 5), # Gen 7
-        Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 8
-        Colfunc("lightgoldenrod", "darkgoldenrod4", 5), # Gen 9
+        Colfunc("greenyellow", "chartreuse4", 5), # Gen 7
+        Colfunc("mediumpurple1", "purple3", 5), # Gen 8
+        Colfunc("lightgoldenrod", "gold4", 5), # Gen 9
         Colfunc("cadetblue1", "cornflowerblue", 5), # Gen 10
         Colfunc("mistyrose", "palevioletred2", 5), # Gen 11
         Colfunc("seagreen1", "seagreen4", 5), # Gen 12
@@ -1219,7 +1220,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         rep(15, 5), rep(16, 5), rep(17, 5), rep(18, 5), rep(19, 5), 
         rep(20, 5)))
     col_key <- cbind(cols_df, bins_df) %>% 
-      add_row(cols = c("gray70", "gray40"), gen = c(-1, -2))
+      add_row(cols = c("gray70", "gray30"), gen = c(-1, -2))
 
     # Remove unneded colors, create bins of 5 to represent rel. pop. size. 
     # For legend, show only one color for each generation (map will have a 
@@ -1265,7 +1266,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       }
       if (any(df$value == "excl.-severe")) {
         col_key2 <- col_key2 %>% 
-          add_row(cols = "gray40", value = "excl.-severe")
+          add_row(cols = "gray30", value = "excl.-severe")
       }
       
     }
@@ -1345,9 +1346,9 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
           Colfunc("magenta", "magenta4", 4), # Gen 4
           Colfunc("tan1", "darkorange3", 4), # Gen 5
           Colfunc("cyan", "cyan4", 4), # Gen 6
-          Colfunc("greenyellow", "chartreuse3", 4), # Gen 7
-          Colfunc("mediumpurple1", "mediumpurple4", 4), # Gen 8
-          Colfunc("lightgoldenrod", "darkgoldenrod4", 4), # Gen 9
+          Colfunc("greenyellow", "chartreuse4", 4), # Gen 7
+          Colfunc("mediumpurple1", "purple3", 4), # Gen 8
+          Colfunc("lightgoldenrod", "gold4", 4), # Gen 9
           Colfunc("cadetblue1", "cornflowerblue", 4), # Gen 10
           Colfunc("mistyrose", "palevioletred2", 4), # Gen 11
           Colfunc("seagreen1", "seagreen4", 4), # Gen 12
@@ -1391,7 +1392,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         }
         # Severe stress exclusions
         if (any(df$value == "excl.-severe")) {
-          col_key <- rbind(data.frame("cols" = "gray40", 
+          col_key <- rbind(data.frame("cols" = "gray30", 
                                       "value" = "excl.-severe"), col_key)
         }
         
@@ -1427,7 +1428,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     # Make the plot
     p <- Base_map(df) +        
       scale_fill_manual(values = 
-                          c("excl.-severe" = "gray40",
+                          c("excl.-severe" = "gray30",
                             "excl.-moderate" = "gray70",
                             "not excluded" = "green2"), name = paste0(lgd)) +
       labs(title = str_wrap(paste(sp, titl), width = titl_width),
@@ -1508,9 +1509,9 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         Colfunc("magenta", "magenta4", 5), # Gen 4
         Colfunc("tan1", "darkorange3", 5), # Gen 5
         Colfunc("cyan", "cyan4", 5), # Gen 6
-        Colfunc("greenyellow", "chartreuse3", 5), # Gen 7
-        Colfunc("mediumpurple1", "mediumpurple4", 5), # Gen 8
-        Colfunc("lightgoldenrod", "darkgoldenrod4", 5), # Gen 9
+        Colfunc("greenyellow", "chartreuse4", 5), # Gen 7
+        Colfunc("mediumpurple1", "purple3", 5), # Gen 8
+        Colfunc("lightgoldenrod", "gold4", 5), # Gen 9
         Colfunc("cadetblue1", "cornflowerblue", 5), # Gen 10
         Colfunc("mistyrose", "palevioletred2", 5), # Gen 11
         Colfunc("seagreen1", "seagreen4", 5), # Gen 12
@@ -1528,7 +1529,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         rep(15, 5), rep(16, 5), rep(17, 5), rep(18, 5), rep(19, 5), 
         rep(20, 5)))
     col_key <- cbind(cols_df, bins_df) %>% 
-      add_row(cols = c("gray70", "gray40"), gen = c(-1, -2))
+      add_row(cols = c("gray70", "gray30"), gen = c(-1, -2))
         
     # Remove unneded colors, create bins of 5 to represent rel. pop. size. 
     # For legend, show only one color for each generation (map will have a 
@@ -1580,7 +1581,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         }
         if (any(df$value == "excl.-severe")) {
           col_key2 <- col_key2 %>% 
-            add_row(cols = "gray40", value = "excl.-severe")
+            add_row(cols = "gray30", value = "excl.-severe")
         }
       
     }
@@ -1653,16 +1654,18 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     # Generate a key for colors for every week of the year, allowing up to 
     # 5 weeks per month
     cols_df <- data.frame("cols" = 
-      c(Colfunc("darkseagreen1", "darkseagreen4", 5),
-        Colfunc("rosybrown1", "rosybrown4", 5),
-        Colfunc("royalblue1", "royalblue4", 5),
-        Colfunc("mediumpurple1", "mediumpurple4", 5), 
-        Colfunc("magenta", "magenta4", 5), Colfunc("cyan", "cyan4", 5),
-        Colfunc("greenyellow", "green4", 5), 
-        Colfunc("yellow", "darkgoldenrod3", 5), 
+      c(Colfunc("deepskyblue", "blue3", 5),
+        Colfunc("red", "darkred", 5), 
+        Colfunc("yellow", "gold3", 5),
+        Colfunc("lightgreen", "darkgreen", 5), 
+        Colfunc("magenta", "magenta4", 5),
         Colfunc("sienna1", "sienna4", 5),
-        Colfunc("red", "darkred", 5), Colfunc("lightpink", "deeppink4", 5),
-        Colfunc("skyblue", "skyblue4", 5))) # Colors
+        Colfunc("cyan", "cyan4", 5),
+        Colfunc("greenyellow", "chartreuse4", 5),
+        Colfunc("mediumpurple1", "purple3", 5),
+        Colfunc("lightpink", "deeppink4", 5),
+        Colfunc("lightgoldenrod", "gold4", 5), 
+        Colfunc("cadetblue1", "cornflowerblue", 5))) # Colors
     weeks_df <- data.frame("mnth" = c(rep("Jan", 5), rep("Feb", 5), 
       rep("Mar", 5), rep("Apr", 5), rep("May", 5), rep("Jun", 5), rep("Jul", 5),
       rep("Aug", 5), rep("Sep", 5), rep("Oct", 5), rep("Nov", 5), 
@@ -1735,7 +1738,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
                           col_key2)
       }
       if (any(df$value_orig == -2)) {
-        col_key2 <- rbind(data.frame("value" = "excl.-sev.", "cols" = "gray40"), 
+        col_key2 <- rbind(data.frame("value" = "excl.-sev.", "cols" = "gray30"), 
                           col_key2)
      }
 
