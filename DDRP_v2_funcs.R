@@ -1954,7 +1954,7 @@ RegCluster <- function(value) {
   # Change the value if it is 1 (this could happen if number of cores is low)
   # Otherwise the whole process will not be run in parallel
   if (value == 1) {
-    value < 2
+    value <- 2
   }
   
   if (grepl("Windows", Sys.info()[1])) {
