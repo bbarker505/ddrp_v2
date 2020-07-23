@@ -2,6 +2,9 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
+# 7/22/20: Replaced "mclapply" function with a foreach loop because mclapply
+#  cannot be used on Windows system; improved method for registering cluster so
+#  that it is based on number of cores in the computer or server being used.
 # 7/1/20: Added "StageCount" raster and map outputs, added map outputs for 
 # current day, improved map legends, added more input param checks 
 #   TO DO: "odd_map_gen" param doesn't work well at small scales becuase 
@@ -140,22 +143,22 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "TABS" # Default species to use
+  spp           <- "ALB" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
-  start_year    <- "2012" # Year to use
+  start_year    <- "2020" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap year be kept?
-  region_param  <- "CONUS" # Default REGION to use
+  region_param  <- "CO" # Default REGION to use
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
-  pems          <- 0 # Turn on/off pest event maps
+  pems          <- 1 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
-  mapE          <- 0 # Make maps for egg stage
+  mapE          <- 1 # Make maps for egg stage
   mapL          <- 0 # Make maps for larval stage
   mapP          <- 0 # Make maps for pupal stage
-  out_dir       <- "TABS_2012" # Output dir
+  out_dir       <- "ALB_2020_new" # Output dir
   out_option    <- 1 # Output option category
-  ncohort       <- 1 # Number of cohorts to approximate end of OW stage
+  ncohort       <- 7 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
 }
 
@@ -606,11 +609,18 @@ dataType(template) <- "INT2U"
 # .inorder must be set to TRUE so that output files are in correct order!
 
 # Register DoParallel
+# The "RegCluster" function creates a set of copies of R running in parallel and 
+# communicating over sockets (parallel socket clusters). The value may be 
+# specified manually; however, here the value is estimated based on the number 
+# of available cores on the computer or server DDRP is being run on. 
+# Specifying too many clusters will overload the computer.
+ncores <- detectCores()
+
 # The "RegCluster" function determines an appropriate # of cores depending on 
 # the "region_param" and "ncohort" parameters, so the server doesn't become
 # overloaded
 
-RegCluster(10)
+RegCluster(round(ncores/4))
 
 if (region_param %in% c("CONUS", "EAST")) {
   # Split template (2 pieces per side)
@@ -672,9 +682,10 @@ cat("\nDone processing ", forecast_data, " data\n\nDAILY LOOP\n", sep = "")
 ## (6). RUN THE DAILY LOOP -----
 # First set up number of cores to use
 # IMPORTANT: using too many cores will result in low memory, killing the daily 
-# loop part-way through. For "mclapply" functions, set mc.cores manually.
+# loop part-way through.
 
-# For mclapply and mcmapply: Can not use >1 core on Windows, so detect OS
+# For mclapply: Can not use >1 core on Windows, so detect OS
+# TO DO: Resolve "foreach" issue with Daily Loop for CONUS so don't need this
 if (grepl("Windows", Sys.info()[1])) {
   mc.cores <- 1
 } else {
@@ -682,11 +693,11 @@ if (grepl("Windows", Sys.info()[1])) {
 }
 
 # Split cohorts into smaller chunks for CONUS and EAST to avoid overloading 
-# memory when running in parallel. Three cohorts puts load up to ~13.
+# memory when running in parallel.
 if (region_param %in% c("CONUS", "EAST")) {
   cohort_chunks <- split(1:ncohort, ceiling(1:length(1:ncohort)/2)) 
 } else {
-  cohort_chunks <- split(1:ncohort, ceiling(1:length(1:ncohort)/5))
+  cohort_chunks <- split(1:ncohort, ceiling(1:length(1:ncohort)/7))
 }
 
 tic("Daily loop run time") # Start timing the daily loop run-time
@@ -701,17 +712,13 @@ cat("\nSampling every", sample_freq, "days between", first(dats), "and",
 
 tryCatch(
   {
+    
+    RegCluster(round(ncores/4))
+    
     # If the region is CONUS or EAST, then both cohorts and tiles will be run in
     # parallel. To avoid overloading the server, mc.cores = 4 (for the 4 tiles,
-    # which keeps load < 12. The run-time is approx 1.5-2.5 minutes.
+    # which keeps load at appropriate level. If a smaller 
     if (region_param %in% c("CONUS", "EAST")) {
-      
-      # Run cohorts and tiles in parallel
-      if (ncohort < 5) {
-        RegCluster(ncohort * 4)
-      } else {
-        RegCluster(15)
-      }
 
       # Total number of nodes is mc.cores * 2 because use mclapply twice in loop
       for (c in cohort_chunks) {
@@ -719,21 +726,26 @@ tryCatch(
             file = Model_rlogging, append = TRUE)
         cat("\nRunning daily loop for cohorts", as.character(c), "\n")
         cohort_vec <- unname(unlist(c)) # change to an unnamed vector
-        # For some reason foreach here just doesn't work well for CONUS 
-        # (slow, way too much load) - not sure why
+        # TO DO: Can not get "foreach" loop to run this analysis. This issue 
+        # should be resolved if DDRP will be run on Windows, because Windows 
+        # is incapable of forking with the "mclapply" function. 
+        #foreach(cohort = cohort_vec, .packages = pkgs, .inorder = FALSE) %:% 
+        #  foreach(tile_num = 1:length(template), .packages = pkgs, 
+        #        .inorder = FALSE) %dopar% {
         mclapply(cohort_vec, function(cohort) {
           mclapply(1:length(template), function(tile_num) {
             tile <- template[[tile_num]]
-            DailyLoop(cohort, tile_num, tile) 
+            DailyLoop(cohort, tile_num, tile)
           }, mc.cores = mc.cores)
-        }, mc.cores = mc.cores)  
-      }
+         }, mc.cores = mc.cores)  
+        }
+      #}
       
       stopCluster(cl)
       rm(cl)
       
     } else {
-      
+
       # If the region is not CONUS or EAST, then we don't need to run function 
       # for multiple tiles.
       for (c in cohort_chunks) {
@@ -742,7 +754,7 @@ tryCatch(
         cat("\nRunning daily loop for cohorts", as.character(c), "\n")
         cohort_vec <- unname(unlist(c)) # change to an unnamed vector
         # Only need to run cohorts in parallel
-        RegCluster(ncohort)
+        RegCluster(round(ncores/4))
         foreach(cohort = cohort_vec, .packages = pkgs, 
                 .inorder = FALSE) %dopar% {
           DailyLoop(cohort, NA, template)
@@ -817,15 +829,12 @@ if (region_param %in% c("CONUS", "EAST")) {
             file = Model_rlogging, append = TRUE)
       # If another file type, then merge tiles for all cohorts
       } else {
-        # mclapply(cohorts, function(c) {
-        #     CombineMaps(brick_files, t, c)
-        #   }, mc.cores = mc.cores)
         foreach(c = cohorts, .packages = pkgs, .inorder = TRUE) %dopar% {
           CombineMaps(brick_files, t, c)
           cat("Merged", t, "tiles for cohort", c, "\n",
               file = Model_rlogging, append = TRUE)
         }
-        #gc()
+
       } 
     }
   }
@@ -969,15 +978,14 @@ dats_list <- split(dats2, ceiling(seq_along(dats2)/(length(dats2)/4)))
 # exclusion, heat stress unit accumulation, heat stress exclusion, and all 
 # stress exclusion
 
-RegCluster(10)
+RegCluster(round(ncores/3))
 
 #for (dat in dats_list) {
 dd_stress_results <- foreach(dat = dats_list, .packages = pkgs, 
-                         .inorder = TRUE) %dopar% {
+                         .inorder = TRUE) %:%
+  foreach(d = unname(unlist(dat)), .packages = pkgs, .inorder = TRUE) %dopar% {
+  
   dat_vec <- unname(unlist(dat)) # change to an unnamed date vector
- 
-  # Plot results for two dates in the date vector in parallel
-  mclapply(dat_vec, function(d) {  
   #for (d in dat_vec) {
       # Get position (layer) of date in raster brick
       lyr <- which(dats2 == d)
@@ -1015,8 +1023,7 @@ dd_stress_results <- foreach(dat = dats_list, .packages = pkgs,
                 "All stress exclusion", "Exclusion status", "All_Stress_Excl")
 
       }
-    }, mc.cores = 4)
-  
+      
 }
 
 stopCluster(cl)
@@ -1102,16 +1109,17 @@ if (exclusions_stressunits) {
 # Generate summary maps for Stage Count results
 # TO DO: see about making this step faster. Increasing parallel processing
 # here (e.g. for going through the StageCt_lst) overloads server too much.
-RegCluster(6)
+RegCluster(round(ncores/3))
 
 for (i in 1:length(StageCt_lst)) {
   fl <- StageCt_lst[i]
   #for (dat in dats_list) {
-  foreach(dat = dats_list, .packages = pkgs, .inorder = TRUE) %dopar% {
-    dat_vec <- unname(unlist(dat)) # Change to an unnamed date vector
+  foreach(dat = dats_list, .packages = pkgs, .inorder = TRUE) %:%
+    foreach(d = unname(unlist(dat)), 
+            .packages = pkgs, .inorder = TRUE) %dopar% {
     
-    # Plots results for dates in the date vector in parallel
-    mclapply(dat_vec, function(d) {  
+    #dat_vec <- unname(unlist(dat)) # Change to an unnamed date vector
+    
     #for (d in dat_vec) {
       
       # Get position (layer) of date in raster brick, subset layer from bricks,
@@ -1129,16 +1137,19 @@ for (i in 1:length(StageCt_lst)) {
                             str_split_fixed(value, "[.]", 2)[,1], value))) %>%
         mutate(stg_num = as.character(ifelse(value > 0, 
                               str_split_fixed(value, "[.]", 2)[,2], value))) %>%
-        left_join(., stg_vals, by = "stg_num") 
+        left_join(., stg_vals, by = "stg_num") %>%
+        mutate(gen_stg = paste0(gen, ".", life_cycle)) # Correctly sort legend
           
       # Format data values for plotting - Gen 0 = OW gen and ordinal values for
       # other generations (1st, 2nd, 3rd, etc.). This step is pretty slow - 
       # see if it can be sped up in future version.
-      OW_gen <- StageCt_df %>% filter(gen == 0) %>%
+      OW_gen <- StageCt_df %>% 
+        filter(gen == 0) %>%
         mutate(value = paste("OW gen.", stg_name))
       
       # Filter out climate stress values to tack on after formatting other data
-      excl_df <- StageCt_df %>% dplyr::filter(value < 0) %>%
+      excl_df <- StageCt_df %>% 
+        dplyr::filter(value < 0) %>%
         mutate(gen_stg = ifelse(value == -2, -2, -1))
           
       if (any(StageCt_df$gen > 0)) {
@@ -1148,9 +1159,7 @@ for (i in 1:length(StageCt_lst)) {
                    map_chr(gen, function(x) paste(toOrdinal(x), "gen."))) %>% 
           unnest() %>% 
           mutate(value = paste(value, stg_name)) %>%
-          rbind(OW_gen, .) %>%
-          # Add a "gen_stg" column to order stage count correctly in legend 
-          mutate(gen_stg = paste0(gen, ".", life_cycle))
+          rbind(OW_gen, .) 
       } else {
         StageCt_df2 <- OW_gen
       }
@@ -1174,10 +1183,9 @@ for (i in 1:length(StageCt_lst)) {
                 "Gen. x stage", "StageCount_Excl2")
       }
   
-    }, mc.cores = mc.cores)
-    #}
+    }
   }
-}
+#}
 
 stopCluster(cl)
 rm(cl)
@@ -1263,13 +1271,11 @@ if (pems) {
   # Which PEM is for the OW stage?
   OW_pem <- paste0("PEM", tolower(substr(owstage, start = 2, stop = 2)), "0")
   
-  # Analyze the PEMs for each cohort in parallel. Here ncores = 2 * PEMnumgens 
-  # (number of generations for which PEMs are generated). 
-  # Then export resulting rasters and generate summary maps
-  RegCluster(2 * PEMnumgens)
+  # Analyze the PEMs for each cohort in parallel, and then export resulting 
+  # rasters and generate summary maps
+  RegCluster(length(PEM_types))
   
-  foreach(type = PEM_types, .packages = pkgs, 
-                        .inorder = FALSE) %dopar% {
+  foreach(type = PEM_types, .packages = pkgs, .inorder = FALSE) %dopar% {
   #for (type in PEM_types) {
    #print(type)
     # Find files by type (e.g., "PEMe1" for each cohort) 
@@ -1343,8 +1349,8 @@ if (pems) {
       # moderate and severe stress with -1 and -2, respectively (Excl2)
       if (exclusions_stressunits) {
         PEM_list <- list(avg_PEM, min_PEM)
+        foreach(PEM = PEM_list, .packages = pkgs, .inorder = FALSE) %dopar% {
         #for (PEM in PEM_list) {
-        mclapply(PEM_list, function(PEM) {
           nam <- names(PEM)
           # Do calculations
           PEM_excl1 <- Rast_Subs_Excl(PEM, "Excl1")[[1]] # Sev. stress (Excl1) 
@@ -1361,7 +1367,7 @@ if (pems) {
           PlotMap(PEM_excl2, last(dats2), paste0(nam, " ", eventLabel, 
                   " w/ climate stress exclusion"), paste0(nam, " ", eventLabel), 
                   paste0(nam, "_", type, "Excl2"))
-         }, mc.cores = 4)
+         }
         }
       }
     }
@@ -1421,8 +1427,8 @@ stg_nonOW <- substring(owstage, 2)
 # in any given life stage. For example, if 7 cohorts are run, then results from
 # the 7 cohorts for each date will be combined and "weighted" according the 
 # relative proportion of population represented by that cohort. 
-# The 5 stages (E, L, P, A, and OW stage) are run in parallel for higher speed.
-RegCluster(5)
+# Results for the 5 stages (E, L, P, A, and OW stage) are run in parallel.
+RegCluster(round(ncores/5))
 
 foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
 #for (stg in stage_list) {
@@ -1449,12 +1455,13 @@ foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
                       num_dats, "dates")) 
 
     # Create and save summary maps
-    Lfstg_plots <- mclapply(1:nlayers(Lfstg_wtd), function(lyr) {
+    Lfstg_plots <- foreach(lyr = 1:nlayers(Lfstg_wtd), 
+                           .packages = pkgs, .inorder = TRUE) %dopar% {
         lyr_name <- paste0(dats2[[lyr]])
         PlotMap(Lfstg_wtd[[lyr]], lyr_name, 
                 paste0(stg_nam, " relative pop. size"), 
                 "Relative pop. size", paste0("Misc_output/", stg_nam))
-    }, mc.cores = 3)
+    }
 
     # If climate stress exclusions are specified, then take weighted lifestage 
     # results from above and substitute values where the species is under severe 
@@ -1477,15 +1484,14 @@ foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
                   "INT2S", paste("-", stg_nam, "relative pop. size for all", 
                   num_dats, "dates"))
       
-     
-      Lfstg_Excl1_plots <- mclapply(1:nlayers(Lfstg_wtd_excl1), 
-        function(lyr) {
+      Lfstg_Excl1_plots <- foreach(lyr = 1:nlayers(Lfstg_wtd_excl1),
+                                   .packages = pkgs, .inorder = TRUE) %dopar% {
           lyr_name <- paste0(dats2[[lyr]])
           PlotMap(Lfstg_wtd_excl1[[lyr]], lyr_name, paste(stg_nam, 
                  "relative pop. size w/ climate stress exclusion", sep = " "), 
                  "Relative pop. size", 
                  paste0("Misc_output/", stg_nam, "_Excl1"))
-      }, mc.cores = 3)
+      }
       
       rm(Lfstg_wtd_excl1, Lfstg_Excl1_plots) # Free memory
       
@@ -1497,15 +1503,15 @@ foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
                   "INT2S", paste("-", stg_nam, "relative pop. size for all", 
                                  num_dats, "dates")) 
       
-      Lfstg_Excl2_plots <- mclapply(1:nlayers(Lfstg_wtd_excl2), 
-        function(lyr) {
+      Lfstg_Excl2_plots <- foreach(lyr = 1:nlayers(Lfstg_wtd_excl2), 
+                                   .packages = pkgs, .inorder = TRUE) %dopar% {
           lyr_name <- paste0(dats2[[lyr]])
           PlotMap(Lfstg_wtd_excl2[[lyr]], lyr_name, paste(stg_nam, 
                   "relative pop. size w/ climate stress exclusion", sep = " "), 
                   "Relative pop. size", 
                   paste0("Misc_output/", stg_nam, "_Excl2"))
-      }, mc.cores = 3)
-      
+      }
+            
     rm(Lfstg_wtd_excl2, Lfstg_Excl2_plots) # Free memory
     
     }
@@ -1533,14 +1539,14 @@ foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
                 "INT2U", paste("-", stg_nonOW_nam, "relative pop. size for", 
                                num_dats, "dates"))
     
-    Lfstg_incOW_plots <- mclapply(1:nlayers(Lfstg_incOW_wtd), 
-      function(lyr) {
+    Lfstg_incOW_plots <- foreach(lyr = 1:nlayers(Lfstg_incOW_wtd), 
+                                 .packages = pkgs, .inorder = TRUE) %dopar% {
         lyr_name <- paste0(dats2[[lyr]])
         PlotMap(Lfstg_incOW_wtd[[lyr]], lyr_name, 
                 paste(stg_nonOW_nam, "relative pop. size"), 
                 "Relative pop. size", paste0("Misc_output/", stg_nonOW_nam))
-    }, mc.cores = 2)
-    
+    }
+        
     rm(Lfstg_incOW_plots) # Free memory
     
     # If climate stress exclusions are specified, then take substitute values 
@@ -1560,16 +1566,16 @@ foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
         str_wrap(paste("-", stg_nonOW_nam, " relative pop. size w/ sev. climate 
                        stress exclusion for", num_dats, "dates"), width = 80))
       
-      Lfstg_incOW_Excl1_plots <- mclapply(1:nlayers(Lfstg_incOW_wtd_excl1), 
-        function(lyr) {
+      Lfstg_incOW_Excl1_plots <- foreach(lyr = 1:nlayers(Lfstg_incOW_wtd_excl1), 
+                                    .packages = pkgs, .inorder = TRUE) %dopar% {
           lyr_name <- paste0(dats2[[lyr]])
           PlotMap(Lfstg_incOW_wtd_excl1[[lyr]], 
                   lyr_name, paste(stg_nonOW_nam, 
                   "relative pop. size w/ climate stress exclusion", sep = " "), 
                   "Relative pop. size", 
                   paste0("Misc_output/", stg_nonOW_nam, "_Excl1"))
-      }, mc.cores = 3)
-      
+      }
+            
       rm(Lfstg_incOW_wtd_excl1) # Free memory
       
       # Moderate and severe stress exclusions
@@ -1583,15 +1589,15 @@ foreach(stg = stage_list, .packages = pkgs, .inorder = TRUE) %dopar% {
                        climate stress exclusion for", num_dats, "dates"), 
                  width = 80))
       
-      Lfstg_incOW_Excl2_plots <- mclapply(1:nlayers(Lfstg_incOW_wtd_excl2), 
-        function(lyr) {
+      Lfstg_incOW_Excl2_plots <- foreach(lyr = 1:nlayers(Lfstg_incOW_wtd_excl2), 
+        .packages = pkgs, .inorder = TRUE) %dopar% {
           lyr_name <- paste0(dats2[[lyr]])
           PlotMap(Lfstg_incOW_wtd_excl2[[lyr]], lyr_name, 
                   paste("All", tolower(stg_nonOW_nam), 
                   "relative pop. size w/ climate stress exclusion", sep = " "), 
                   "Relative pop. size", paste0("Misc_output/", stg_nonOW_nam, 
                                                "_Excl2"))
-      }, mc.cores = 3)
+      }
       
       rm(Lfstg_incOW_wtd_excl2) # Free memory
     }
@@ -1638,7 +1644,7 @@ if (exclusions_stressunits) {
 NumGen_fls <- list.files(pattern = glob2rx(paste0("NumGen_", "*tif$"))) 
 maxgens <- as.numeric(max(maxValue(raster::stack(NumGen_fls))))
 
-RegCluster(3)
+RegCluster(round(ncores/12))
 
 foreach(i = 0:maxgens, .packages = pkgs, 
         .inorder = TRUE) %:%
@@ -1673,7 +1679,7 @@ names(gen_fls_lst) <- paste(c(rep("Gen", 1 + maxgens)), 0:maxgens, sep = "_")
 # population size of each cohort. For example, cohort 1 emerged sooner in
 # the year so may have completed more generations, but they comprise a small
 # proportion of the population. The result of the analysis will depict this.
-RegCluster(3)
+RegCluster(round(ncores/10))
 foreach(i = 1:length(gen_fls_lst), .packages = pkgs, 
                           .inorder = TRUE) %dopar% {
 #for (i in 1:length(gen_fls_lst)) { 
@@ -1776,7 +1782,7 @@ fls_to_stack[] <- lapply(fls_to_stack, function(x) paste0("Misc_output/", x))
 # For each type (NumGen, NumGenExcl1, NumGenExcl2), stack all 
 # generations together and write the results to file
 if (exclusions_stressunits) {
-  RegCluster(3)
+  RegCluster(round(ncores/10))
 
   foreach(i = 1:length(fls_to_stack), .packages = pkgs,
           .inorder = TRUE) %dopar% {
@@ -1805,7 +1811,7 @@ if (exclusions_stressunits) {
                                  "NumGenExcl2_all_merged.grd"))
 }
 
-RegCluster(10)
+RegCluster(round(ncores/4))
 
 #for (i in 1:length(NumGen_mrgd_fls)) {
 foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
@@ -2044,7 +2050,7 @@ cat("\n\n", str_wrap("Replacing older generation vals with newer gen.
                    vals in areas of overlap", width = 80), "\n", sep = "",
     file = Model_rlogging, append = TRUE)
 
-RegCluster(3)
+RegCluster(round(ncores/10))
   
 corrected_NumGen <- foreach(d = 1:length(dats2), .packages = pkgs, 
                             .inorder = FALSE) %dopar% {
@@ -2156,7 +2162,7 @@ if (exclusions_stressunits) {
   Adult_fl_types <- c("Adult")
 }
   
-RegCluster(4)
+RegCluster(round(ncores/10))
 
 # Run the overlay analysis and save results as raster bricks
 #for (type in Adult_fl_types) {
@@ -2227,7 +2233,7 @@ if (exclusions_stressunits) {
 # doing these for adults). TO DO: maybe change way the results are displayed; 
 # a bit confusing to have "other stages" plus gen number, but gen number is 
 # not actually dispalyed on map.
-RegCluster(6)
+RegCluster(round(ncores/6))
 
 Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls), 
  .packages = pkgs, .inorder = TRUE) %:% 
@@ -2398,3 +2404,4 @@ cat("\nRun time for entire model =", total_exectime, "min\n\n")
 # Clean up
 rm(list = ls(all.names = TRUE)) # Clear all objects including hidden objects
 gc()
+
