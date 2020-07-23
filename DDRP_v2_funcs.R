@@ -4,6 +4,7 @@
 # needed to run the program.
 # 
 # Log of most recent changes -----
+# 7/22/20: Minor edits to RegCluster function
 # 7/16/20: Improved some legend colors to better discern categories
 # 6/26/20: Added "StageCount" summary maps, improved map legends, cleaned
 # up PlotMap function
@@ -1946,20 +1947,27 @@ Rast_Subs_Excl <- function(brk, type) {
 }
 
 #### (17). RegCluster: register cluster for parallel computing ####
-# Specifies the number of clusters to use for parallel computation based on 
-# the number of cohorts in the model, and whether tiles (for CONUS or EAST)
-# are also being run in parallel
-RegCluster <- function(ncores) {
-  if (grepl("Windows", Sys.info()[1])) {
-    cl <<- makePSOCKcluster(ncores)
-  } else {
-    cl <<- makeCluster(ncores)
+# Specifies the number of clusters to use for parallel computation. The 
+# function will be different depending on the OS.
+RegCluster <- function(value) {
+  
+  # Change the value if it is 1 (this could happen if number of cores is low)
+  # Otherwise the whole process will not be run in parallel
+  if (value == 1) {
+    value < 2
   }
-
+  
+  if (grepl("Windows", Sys.info()[1])) {
+    cl <<- makePSOCKcluster(value)
+  } else {
+    cl <<- makeCluster(value)
+  }
+  
   # If run is being done on Hopper, need to specify the library for each worker
   if (Sys.info()["nodename"] == "hopper.science.oregonstate.edu") {
     clusterEvalQ(cl, .libPaths("/usr/local/lib64/R/library/"))
   }
+  
   doParallel::registerDoParallel(cl)
   #on.exit(stopCluster(cl))
   return(cl)
