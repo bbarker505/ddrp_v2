@@ -619,7 +619,6 @@ ncores <- detectCores()
 # The "RegCluster" function determines an appropriate # of cores depending on 
 # the "region_param" and "ncohort" parameters, so the server doesn't become
 # overloaded
-
 RegCluster(round(ncores/4))
 
 if (region_param %in% c("CONUS", "EAST")) {
