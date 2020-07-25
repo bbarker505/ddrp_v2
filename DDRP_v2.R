@@ -96,7 +96,8 @@ option_list <- list(
   make_option(c("--keep_leap"), action = "store", type = "integer", 
               default = NA, help = "should leap day be kept? 0=no, 1=yes"),
   make_option(c("--region_param"), type = "character", action = "store", 
-              default = NA, help = "study region"),
+              default = NA, help = "study region: CONUS, EAST, WEST, or 
+              state (2-letter abbr.)"),
   make_option(c("--exclusions_stressunits"), type = "integer", action = "store",
               default = NA, help = "0 = off, 1 = on"),
   make_option(c("--pems"), type = "integer", action = "store", 
@@ -148,8 +149,8 @@ if (!is.na(opts[1])) {
   start_year    <- "2020" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
-  keep_leap     <- 1 # Should leap year be kept?
-  region_param  <- "CO" # Default REGION to use
+  keep_leap     <- 1 # Should leap day be kept?
+  region_param  <- "CO" # Region [CONUS, EAST, WEST, or state (2-letter abbr.)]
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
   pems          <- 1 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
@@ -157,7 +158,7 @@ if (!is.na(opts[1])) {
   mapL          <- 0 # Make maps for larval stage
   mapP          <- 0 # Make maps for pupal stage
   out_dir       <- "ALB_2020_new" # Output dir
-  out_option    <- 1 # Output option category
+  out_option    <- 1 # Sampling frequency
   ncohort       <- 7 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
 }
