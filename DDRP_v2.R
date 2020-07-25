@@ -2,7 +2,7 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
-# 7/22/20: Replaced "mclapply" function with a foreach loop because mclapply
+# 7/24/20: Replaced "mclapply" function with a foreach loop because mclapply
 #  cannot be used on Windows system; improved method for registering cluster so
 #  that it is based on number of cores in the computer or server being used.
 # 7/1/20: Added "StageCount" raster and map outputs, added map outputs for 
