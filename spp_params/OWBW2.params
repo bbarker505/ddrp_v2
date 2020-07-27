@@ -3,7 +3,7 @@
 # Last updated in June 2019 for DDRP v2 (cohorts)
   fullname   <- "Old world bollworm"
   pestof     <- "corn,grains,cotton,citrus,flowers,vegetables,tomato,tobacco,potato,soybeans,alfalfa,beans"
-  stgorder   <- c("OP","A","E","L","P","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  stgorder   <- c("OP","A","E","L","P") # stgorder changed to 1, 2, 3, 4, 5
   owstage    <- "OP" # OP means ow as pupae
   # Notes on devel: opt temp for larvae->adults 33.9C (Twine 1978), opt survival temps 24-27C
   # high temps in lab lead to pupal dormancy (Nibouche 1998)

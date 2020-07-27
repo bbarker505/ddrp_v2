@@ -3,7 +3,7 @@
 # Last updated in May 2020 for DDRP v2
   fullname   <- "Light brown apple moth"
   pestof     <- "apple, pear, citrus, grapes, caneberries, over 500 known hosts"
-  stgorder   <- c("OL","P","A","E","L","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  stgorder   <- c("OL","P","A","E","L") # stgorder changed to 1, 2, 3, 4, 5 
   owstage    <- "OL" # OL means ow as larvae
   eggLDT     <- 7.2    # from IPPC analysis of all avail. data sources
   eggUDT     <- 31.1   # based on Danthanarayana 1975, Geier and Breise 1981, others       

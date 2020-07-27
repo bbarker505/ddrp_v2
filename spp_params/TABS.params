@@ -3,7 +3,7 @@
 # Last updated in January 2020 for DDRP v2 (cohorts)  
   fullname   <- "Tomato leafminer"
   pestof     <- "tomato, potato, eggplant, peppers"
-  stgorder   <- c("OA","E","L","P","A","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  stgorder   <- c("OA","E","L","P","A") # stgorder changed to 1, 2, 3, 4, 5
   owstage    <- "OA"   # OA means ow as adults
   eggLDT     <- 7.78 # Best overall Tlow for all stages, PreOV and OV may be slightly higher
   eggUDT     <- 35  # High egg mortality >30C but acct. for diff in canopy vs. weather shelter T

@@ -5,8 +5,8 @@
 #  growth of Autographa gamma larvae. Eur. J. Entomol. 99:241-252.
 # Last updated in July 2020 for DDRP v2 (cohorts) - added climate suitability
   fullname   <- "Silver Y moth"
-  pestof     <- "many hosts including garden pea, sugar beet, cabbage, vegetabless"
-  stgorder   <- c("OL","A","E","L","P","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  pestof     <- "many hosts including garden pea, sugar beet, cabbage, vegetables"
+  stgorder   <- c("OL","A","E","L","P") # stgorder changed to 1, 2, 3, 4, 5
   owstage    <- "OL"   # OW larvae late instart larvae in the soil
   eggLDT     <- 8.9   # 
   eggUDT     <- 35   #

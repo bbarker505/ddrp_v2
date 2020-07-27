@@ -7,8 +7,7 @@
 #
   fullname  <- "Japanese pine sawyer beetle"
   pestof    <- "pine trees"
-  stgorder  <- c("OL","P","A","E","L","F") # "F" is end-of-day placeholder
-  #stgorder <- c("OWlarvae","pupae","adult","egg", "larvae") # reassigned as 1, 2, 3, 4, 5 in model; OW = overwintering stage
+  stgorder  <- c("OL","P","A","E","L") # stgorder changed to 1, 2, 3, 4, 5 
   owstage   <- "OL" # OL means ow as larvae
   eggLDT    <- 12.2  
   eggUDT    <- 35.0        

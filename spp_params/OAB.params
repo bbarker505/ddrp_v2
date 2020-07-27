@@ -7,7 +7,7 @@
 # Last updated in June 2019 for DDRP v2
   fullname  <- "Oak ambrosia beetle"
   pestof    <- "oak trees"
-  stgorder  <- c("OL","P","A","E","L","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  stgorder  <- c("OL","P","A","E","L") # stgorder changed to 1, 2, 3, 4, 5
   owstage   <- "OL" # OL means ow as larvae
   eggLDT    <- 11.1  
   eggUDT    <- 38.0        
