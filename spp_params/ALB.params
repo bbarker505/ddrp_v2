@@ -3,7 +3,7 @@
 # Last udpated in June 2019 for DDRP v2 (cohorts)
   fullname   <- "Asian longhorned beetle"
   pestof     <- "ash, birch, elm, maple, buckeye, mimosa, poplar, willow, sev. other trees"
-  stgorder   <- c("OL","P","A","E","L","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  stgorder   <- c("OL","P","A","E","L") # stgorder changed to 1, 2, 3, 4, 5
   owstage    <- "OL"  # OL means ow as larvae
   eggLDT     <- 10    # IPPC modeling http://uspest.org/wea/ALB_model_v1.pdf
   eggUDT     <- 35    # IPPC modeling

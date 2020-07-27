@@ -3,7 +3,7 @@
 # Last updated in June 2019 for DDRP v2 (cohorts)
   fullname   <- "Spodoptera litura"
   pestof     <- "cotton,soybeans,vegetables,many crops"
-  stgorder   <- c("OP","A","E","L","P","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  stgorder   <- c("OP","A","E","L","P") # stgorder changed to 1, 2, 3, 4, 5
   owstage    <- "OP"   # OW pupae in the soil; no true diapause   
   eggLDT     <- 10.56   # IPPC synthesis; mainly RangaRao et al. 1989, Fand etal 2015, others
   eggUDT     <- 40     # Unknown, good survival up to 35

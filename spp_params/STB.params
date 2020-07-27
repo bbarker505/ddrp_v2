@@ -3,7 +3,7 @@
 # Last updated in May 6 for DDRP v2 (cohorts)  
   fullname   <- "Small tomato borer"
   pestof     <- "tomato, eggplant, peppers"
-  stgorder   <- c("OA","E","L","P","A","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  stgorder   <- c("OA","E","L","P","A") # stgorder changed to 1, 2, 3, 4, 5
   owstage    <- "OA"   # OA means ow as adults
   eggLDT     <- 8.89
   eggUDT     <- 30  # Climex: DV2 ca. 27 DV3 ca. 30-32 so use 30 as upper horiz cutoff

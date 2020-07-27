@@ -3,7 +3,7 @@
 # Last updated in June 2019 for DDRP v2 (cohorts)
   fullname   <- "False codling moth"
   pestof     <- "Citrus, corn, cotton, macadamia, avocado, stone fruits"
-  stgorder   <- c("OP","E","L","P","A","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  stgorder   <- c("OP","E","L","P","A") # stgorder changed to 1, 2, 3, 4, 5 
   owstage    <- "OP" # OP means ow as pupae
   eggLDT     <- 11.7 # Daiber 1979 - the egg
   eggUDT     <- 38    # assume same as larva/adult

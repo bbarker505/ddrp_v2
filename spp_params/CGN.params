@@ -3,7 +3,7 @@
 # Last updated in Sept 2019
   fullname   <- "Honeydew moth"
   pestof     <- "citrus, grapes, avocado, pomegranate"
-  stgorder   <- c("OP","A","E","L","P","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  stgorder   <- c("OP","A","E","L","P") # stgorder changed to 1, 2, 3, 4, 5 
   owstage    <- "OP"   # OL means overwinter as pupae
   eggLDT     <- 12.22 # data from Salama (2008); Ringenberg et al. 2005
   eggUDT     <- 35  # data from Salama (2008): high mortality starting at 35C; complete mortality at 40C

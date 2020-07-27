@@ -5,7 +5,7 @@
 # Last updated in June 2019 for DDRP v2 (cohorts)
   fullname   <- "Pine tree lappet moth"
   pestof     <- "pine trees"
-  stgorder   <- c("OL","P","A","E","L","F") # "F" is end-of-day placeholder in DDRP v1; stgorder changed to 1, 2, 3, 4, 5 in DDRP v2
+  stgorder   <- c("OL","P","A","E","L") # stgorder changed to 1, 2, 3, 4, 5
   owstage    <- "OL" # OL means ow as larvae
   eggLDT     <- 7.22  
   eggUDT     <- 30.0        
