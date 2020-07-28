@@ -144,20 +144,20 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "ALB" # Default species to use
+  spp           <- "LBAM" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
-  start_year    <- "2020" # Year to use
+  start_year    <- "2012" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap day be kept?
-  region_param  <- "CO" # Region [CONUS, EAST, WEST, or state (2-letter abbr.)]
+  region_param  <- "CONUS" # Region [CONUS, EAST, WEST, or state (2-letter abbr.)]
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
-  pems          <- 1 # Turn on/off pest event maps
+  pems          <- 0 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 1 # Make maps for egg stage
   mapL          <- 0 # Make maps for larval stage
   mapP          <- 0 # Make maps for pupal stage
-  out_dir       <- "ALB_2020_new" # Output dir
+  out_dir       <- "LBAM_test" # Output dir
   out_option    <- 1 # Sampling frequency
   ncohort       <- 7 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
@@ -249,7 +249,7 @@ if (file.exists(species_params)) {
 if (!grepl("[A-z]", start_year)) {
   start_year <- as.numeric(start_year)
 } else {
-  start_year <- "daily30yr" # current loc. of 30yr normals - may need to change
+  start_year <- "30yr" # This needs to be changed depending on folder name
 }
 
 # Set up start and stop day of year depending on whether it's a leap year or
@@ -325,8 +325,6 @@ sublist <- start_doy:end_doy
 #### * Format threshold and DD params for Daily Loop ####
 
 # Need to match length and order of stgorder, which is species specific
-# Remove "F" from stgorder param - this is for an old version of DDRP
-stgorder <- stgorder[-length(stgorder)]
 
 # Upper and lower thresholds
 # OW stage will have the same threshold as actual stage (e.g., OWadult = adult)
