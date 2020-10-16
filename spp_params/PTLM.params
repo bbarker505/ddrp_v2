@@ -42,9 +42,9 @@
   heatstress_units_max1 <- 190  # use for heat stress units: HeatDD limit; so "most" all die once reached
   heatstress_units_max2 <- 275  # use for heat stress units: HeatDD limit; so all die once reached
 # OW stage emergence parameters (DDRP v2 only)
-  distro_mean <- 618
-  distro_var <- 20000 
-  xdist1 <- 205
-  xdist2 <- 1006
+  distro_mean <- 222
+  distro_var <- 5000 
+  xdist1 <- 0
+  xdist2 <- 441
   distro_shape <- "normal" 
   # END
