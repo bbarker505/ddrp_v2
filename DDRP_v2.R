@@ -2,6 +2,8 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
+# 10/27/20: Added code to backup old run files if a run with the same folder 
+#   name is conducted, fixed bug related to sampling the current day, etc.
 # 7/24/20: Replaced "mclapply" function with a foreach loop because mclapply
 #  cannot be used on Windows system; improved method for registering cluster so
 #  that it is based on number of cores in the computer or server being used.
@@ -32,8 +34,8 @@ options(echo = FALSE)
 # Load the required packages
 pkgs <- c("doParallel", "dplyr", "foreach", "ggplot2", "ggthemes", 
           "lubridate", "mapdata", "mgsub", "optparse", "parallel",
-          "purrr", "RColorBrewer", "rgdal", "raster", "readr", "sp", "stringr", 
-          "tidyr", "tictoc", "tools", "toOrdinal")
+          "purrr", "RColorBrewer", "rgdal", "raster", "readr", "R.utils", "sp", 
+          "stringr", "tidyr", "tictoc", "tools", "toOrdinal")
 ld_pkgs <- lapply(pkgs, library, 
                   lib.loc = "/usr/lib64/R/library/", character.only = TRUE)
 
@@ -144,20 +146,20 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "LBAM" # Default species to use
+  spp           <- "STB" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
-  start_year    <- "2012" # Year to use
+  start_year    <- "2020" # Year to use
   start_doy     <- 1 # Start day of year          
-  end_doy       <- 365 # End day of year - need 365 if voltinism map 
+  end_doy       <- 90 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap day be kept?
-  region_param  <- "CONUS" # Region [CONUS, EAST, WEST, or state (2-letter abbr.)]
+  region_param  <- "CA" # Region [CONUS, EAST, WEST, or state (2-letter abbr.)]
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
-  pems          <- 0 # Turn on/off pest event maps
+  pems          <- 1 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
-  mapE          <- 1 # Make maps for egg stage
+  mapE          <- 0 # Make maps for egg stage
   mapL          <- 0 # Make maps for larval stage
   mapP          <- 0 # Make maps for pupal stage
-  out_dir       <- "LBAM_test" # Output dir
+  out_dir       <- "STB_test" # Output dir
   out_option    <- 1 # Sampling frequency
   ncohort       <- 7 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
@@ -187,11 +189,44 @@ cat("\nWORKING DIR: ", prism_dir, "\n")
 #output_dir <- paste0("/home/httpd/html/CAPS/", spp, "_cohorts")
 output_dir <- paste0("/usr/local/dds/DDRP_B1/DDRP_results/", out_dir)
 
-# Remove all files if output_dir exists, or else create output_dir
+# If the directory already exists, then a backup directory will be created that
+# contains the old run files. Old backup directories will be removed if needed.
 if (file.exists(output_dir)) {
-  unlink(paste0(output_dir, "/*"), recursive = TRUE, force = TRUE)
-  cat("\n", str_wrap(paste0("EXISTING OUTPUT DIR: ", output_dir, 
-                     "; removing all files\n"), width = 80), sep = "") 
+  
+  # Create a directory for the previous run to backup old run files to
+  backup_dir <- paste0(output_dir, "/previous_run")
+  old_subdirs <- list.dirs(path = output_dir, recursive = FALSE)
+  
+  # Delete an old backup directory if there is one present so that only most 
+  # recent run files will be backed up
+  if (any(grepl("previous_run", old_subdirs))) {
+    pos <- which(grepl("previous_run", old_subdirs))
+    unlink(paste0(old_subdirs[pos], "/"), recursive = TRUE)
+    old_subdirs <- old_subdirs[-pos] # Remove old backup dir from subdir list
+  }
+  
+  # Copy the subdirectories of the old run (e.g."Logs_metadata", "Misc_output")
+  # to the backup dir, and then delete them 
+  for (i in 1:length(old_subdirs)) {
+    subdir <-  old_subdirs[i] %>%
+      str_split(pattern = "/") %>%
+      unlist %>%
+      last()
+    subdir_copy <- paste(backup_dir, subdir, sep = "/")
+    copyDirectory(old_subdirs[i], subdir_copy, recursive = TRUE)
+    unlink(paste0(old_subdirs[i], "/"), recursive = TRUE)
+  }
+  
+  # Copy the main output files of the old run (main directory) to the backup dir
+  # and then delete them. This has to be done separately from copying sub-
+  # directories in order to avoid making nested copies of the backup folder
+  copyDirectory(output_dir, backup_dir, recursive = FALSE)
+  unlink(paste0(output_dir, "/*"), recursive = FALSE)
+  
+  cat("\n", str_wrap(paste0("EXISTING OUTPUT DIR: ", output_dir, ";\n", 
+                     "copied old run files to", backup_dir, "\n"), 
+                     width = 80), sep = "") 
+
 } else {
   dir.create(output_dir)
   cat("NEW OUTPUT DIR:", output_dir, "\n")
@@ -405,11 +440,17 @@ setwd(output_dir)
 metadata <- sprintf("%s%s", "./", "/Logs_metadata/metadata.txt")
 cat("### Metadata for DDRP v2 ###\n", file = metadata)
 
-# Document species information
-cat("\n### Model Species Parameters ###\n Species Abbrev:", spp, 
+# Document run date
+cat("\nRun date and time:", strftime(Sys.time(), format = "%m/%d/%Y %H:%M"),
+    file = metadata, append = TRUE)
+
+# Document species information and method used to calculate degree-days
+cat("\n\n### Model Species Parameters ###\n Species Abbrev:", spp, 
     "\n Full Name:", fullname, 
     "\n Pest of:", pestof,
-    "\n Overwintering Stage:", owstage, file = metadata, append = TRUE)
+    "\n Overwintering Stage:", owstage, 
+    "\n Degree-day calculation method:", calctype, 
+    file = metadata, append = TRUE)
 
 # Document developmental threshold temperatures
 cat("\n \n Developmental threshold temperatures",
@@ -552,7 +593,8 @@ if (out_option == 1) {
 }
 
 # Make vector of dates to use when processing results 
-# The current date will be sampled if it's the current year.
+# The current date will be sampled if it's the current year AND if 
+# the current day falls within the range of start_doy and end_doy.
 # The last date of year will always be sampled.
 # Using "unique" will only keep date if it doesn't already occur in vector
 # This happens if the end day of year is a multiple of the sampling frequency 
@@ -561,7 +603,9 @@ if (out_option == 1) {
 today_dat <- strftime(Sys.time(), format = "%Y%m%d")
 current_year <- strftime(Sys.time(), format = "%Y")
 
-if (start_year == current_year) {
+if (start_year == current_year & 
+    yday(Sys.time()) >= start_doy &
+    yday(Sys.time()) <= end_doy) {
   dats2 <- sort(as.numeric(unique(c(dats[seq(0, length(dats), sample_freq)], 
                   today_dat, last(dats)))))
 } else {
@@ -573,12 +617,15 @@ dats2 <- as.character(dats2) # Need to be in character format for plotting
 num_dats <- length(dats2) # How many sampled dates? 
 
 # Create vector of days in the sublist that will be sampled (rasters are saved 
-# for those days), and also tack on the last day in the list. 
+# for those days) in the Daily Loop, and also tack on the last day in the list. 
 sample_pts <- c(sublist[seq(0, length(sublist), sample_freq)],
                 last(sublist))
 
-# Add the present day if DDRP run is being run for the current year.
-if (start_year == current_year) {
+# Add the present day if DDRP run is being run for the current year AND if 
+# the current day falls within the range of start_doy and end_doy. 
+if (start_year == current_year & 
+    yday(Sys.time()) >= start_doy &
+    yday(Sys.time()) <= end_doy) {
   today_doy <- strftime(Sys.time(), format = "%j") # Day of year
   sample_pts <- sort(as.numeric(unique(c(sample_pts, today_doy))))
 }
@@ -752,7 +799,6 @@ tryCatch(
         cat("\nRunning daily loop for cohorts", as.character(c), "\n")
         cohort_vec <- unname(unlist(c)) # change to an unnamed vector
         # Only need to run cohorts in parallel
-        RegCluster(round(ncores/4))
         foreach(cohort = cohort_vec, .packages = pkgs, 
                 .inorder = FALSE) %dopar% {
           DailyLoop(cohort, NA, template)
