@@ -440,7 +440,7 @@ setwd(output_dir)
 metadata <- sprintf("%s%s", "./", "/Logs_metadata/metadata.txt")
 cat("### Metadata for DDRP v2 ###\n", file = metadata)
 
-# Document run date
+# Document run date and time
 cat("\nRun date and time:", strftime(Sys.time(), format = "%m/%d/%Y %H:%M"),
     file = metadata, append = TRUE)
 
