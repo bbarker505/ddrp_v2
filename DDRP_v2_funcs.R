@@ -4,6 +4,8 @@
 # needed to run the program.
 # 
 # Log of most recent changes -----
+# 10/26/20: Fixed code that allows for different DD calc methods to be used and
+#   removed "SimpDD" calculation (need to add Sine DD calc method later)
 # 8/15/20: Fixed bug in Stage Count plotting function
 # 7/22/20: Minor edits to RegCluster function
 # 7/16/20: Improved some legend colors to better discern categories
@@ -238,9 +240,7 @@ Cut_bins2 <- function(df) {
 # populate during the model run, and to convert matrix outputs into raster 
 # format.
 DailyLoop <- function(cohort, tile_num, template) { 
-  
-  setwd(output_dir) 
-  
+
   # Generate a daily log file for each cohort - 
   # this is useful only for trouble-shooting
   # if (region_param %in% c("CONUS", "EAST")) {
@@ -397,17 +397,24 @@ DailyLoop <- function(cohort, tile_num, template) {
     ls_udt <- stage_udt[Lifestage]
     ls_dd <- stage_dd_cohort[Lifestage]
     
-    # Calculate stage-specific degree-days for each cell per day
-    dd_tmp <- TriDD(tmax, tmin, ls_ldt, ls_udt)
-    
-    # Accumulate degree days
-    DDaccum <- DDaccum + dd_tmp
-    
     # Accumulate total DDs across year, using larvae Lifestage
     # Can not use DDaccum because this one has values reset when progress = 1
     ls_ldt_larv <- stage_ldt[which(stgorder == "L")]
     ls_udt_larv <- stage_udt[which(stgorder == "L")]
-    dd_tmp_larv <- TriDD(tmax, tmin, ls_ldt_larv, ls_udt_larv)
+
+    # Calculate stage-specific degree-days for each cell per day
+    if (calctype == "average") {
+      dd_tmp <- AvgDD(tmax, tmin, ls_ldt, ls_udt)
+      dd_tmp_larv <- AvgDD(tmax, tmin, ls_ldt_larv, ls_udt_larv)
+      } else if (calctype == "triangle") {
+        dd_tmp <- TriDD(tmax, tmin, ls_ldt, ls_udt)
+        dd_tmp_larv <- TriDD(tmax, tmin, ls_ldt_larv, ls_udt_larv)
+    }
+    
+    # Accumulate degree days
+    DDaccum <- DDaccum + dd_tmp
+    
+    # Calculate total degree days for larvae
     DDtotal <- DDtotal + dd_tmp_larv
     
     # Climate stress exclusions - results will be same for all cohorts, 
@@ -816,8 +823,8 @@ DailyLoop <- function(cohort, tile_num, template) {
   # Remove .xml files generated w/ .tif files for certain raster bricks
   # Haven't yet figured out a way to prevent these from being created. The
   # only solution I have found is to change a GDAL setting.
-  delfiles <- dir(path = output_dir, pattern = "*xml")
-  suppressWarnings(file.remove(file.path = output_dir, delfiles))
+  delfiles <- dir(pattern = "*xml")
+  suppressWarnings(file.remove(delfiles))
   gc() # Clear items from the environment - is this necessary?
   
 }
@@ -828,18 +835,12 @@ DailyLoop <- function(cohort, tile_num, template) {
 # tmax = max. temp. data; tmin = min. temp data; LDT = lower developmental 
 # temperature threshold; UDT = upper developmental temperature threshold
 
-# Simple Mean Temp DD Calc method: ((tmean > LDT) * (tmean - LDT))
-# Same result as max((tmax + tmin)/2 - LDT,0), so no need for tmean PRISM data. 
-SimpDD <- function(tmax, tmin,LDT) {
-  return(max((tmax + tmin)/2 - LDT,0))
-}
-
 # Averaging DD Calc method (max + min/2 - tlow) but with horizontal 
 # (substitution) upper threshold:
 AvgDD <- function(tmax, tmin, LDT, UDT) {
   return(Cond(tmax < LDT, 0, Cond(tmin > UDT, 0, 
                                   Cond(tmax > UDT, (UDT + tmin)/2 - LDT, 
-                                       Cond((tmax + tmin)/2 - LDT < 0,0, 
+                                       Cond((tmax + tmin)/2 - LDT < 0, 0, 
                                             (tmax + tmin)/2 - LDT)))))
 }
 
@@ -847,16 +848,16 @@ AvgDD <- function(tmax, tmin, LDT, UDT) {
 # also a good substitution for the single sine method
 TriDD <- function(tmax, tmin, LDT, UDT) {
   tmax <- Cond(tmax == tmin, tmax + 0.01, tmax)
-  Tmp1 = 6*((tmax - LDT)*(tmax - LDT))/(tmax - tmin)
-  Tmp2 = 6*((tmax - UDT)*(tmax - UDT))/(tmax - tmin)
-  Cond(tmax < LDT,0,
-       Cond(tmin >= UDT,UDT - LDT,
+  Tmp1 = 6 * ((tmax - LDT) * (tmax - LDT))/(tmax - tmin)
+  Tmp2 = 6 * ((tmax - UDT) * (tmax - UDT))/(tmax - tmin)
+  Cond(tmax < LDT, 0,
+       Cond(tmin >= UDT, UDT - LDT,
             Cond((tmax < UDT) & (tmin <= LDT), Tmp1/12,
                  Cond((tmin <= LDT) & (tmax >= UDT), (Tmp1 - Tmp2)/12,
                       Cond((tmin > LDT) & (tmax >= UDT), 
-                           6*(tmax + tmin - 2*LDT)/12 - (Tmp2/12),
+                           6 * (tmax + tmin - 2 * LDT)/12 - (Tmp2/12),
                            Cond((tmin > LDT) & (tmax < UDT), 
-                                6*(tmax + tmin - 2*LDT)/12,0))))))
+                                6 * (tmax + tmin - 2 * LDT)/12, 0))))))
 } 
 
 #### (12). ExtractBestPRISM: get best PRISM/NMME file from directory ####
@@ -1432,7 +1433,8 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       scale_fill_manual(values = 
                           c("excl.-severe" = "gray30",
                             "excl.-moderate" = "gray70",
-                            "not excluded" = "green2"), name = paste0(lgd)) +
+                            "not excluded" = "green2"), 
+                        name = paste0(lgd), drop = FALSE) +
       labs(title = str_wrap(paste(sp, titl), width = titl_width),
            subtitle = str_wrap(subtitl, width = subtitl_width)) +
       theme_map(base_size = base_size) + 
