@@ -161,7 +161,7 @@ if (!is.na(opts[1])) {
   mapP          <- 0 # Make maps for pupal stage
   out_dir       <- "STB_test" # Output dir
   out_option    <- 1 # Sampling frequency
-  ncohort       <- 7 # Number of cohorts to approximate end of OW stage
+  ncohort       <- 1 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
 }
 
@@ -2431,7 +2431,8 @@ cat("Renamed all final PNG files to include ", spp, " in file name\n", sep = "")
 # All other misc files (w/out spp name in file name) are moved to "/Misc_output"
 misc_fls <- grep(list.files(path = output_dir), 
                  pattern = spp, invert = TRUE, value = TRUE) 
-misc_fls <- misc_fls[!(misc_fls %in% c("Misc_output", "Logs_metadata"))]
+misc_fls <- misc_fls[!(misc_fls %in% 
+                         c("Misc_output", "previous_run", "Logs_metadata"))]
 invisible(file.copy(misc_fls, paste0(output_dir, "/Misc_output/")))
 invisible(file.remove(misc_fls))
 
