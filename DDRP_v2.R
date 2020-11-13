@@ -2,6 +2,9 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
+# 11/10/20: Modified Adult by Gen code inc. summary map function because of 
+#   errors in plotting FCM maps and also some clim. stress vals not correct.
+#   Also removed "R.utils" package and just coded manually for backup folder.
 # 10/27/20: Added code to backup old run files if a run with the same folder 
 #   name is conducted, fixed bug related to sampling the current day, etc.
 # 7/24/20: Replaced "mclapply" function with a foreach loop because mclapply
@@ -34,7 +37,7 @@ options(echo = FALSE)
 # Load the required packages
 pkgs <- c("doParallel", "dplyr", "foreach", "ggplot2", "ggthemes", 
           "lubridate", "mapdata", "mgsub", "optparse", "parallel",
-          "purrr", "RColorBrewer", "rgdal", "raster", "readr", "R.utils", "sp", 
+          "purrr", "RColorBrewer", "rgdal", "raster", "readr", "sp", 
           "stringr", "tidyr", "tictoc", "tools", "toOrdinal")
 ld_pkgs <- lapply(pkgs, library, 
                   lib.loc = "/usr/lib64/R/library/", character.only = TRUE)
@@ -146,20 +149,20 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "STB" # Default species to use
+  spp           <- "TABS" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
   start_year    <- "2020" # Year to use
   start_doy     <- 1 # Start day of year          
-  end_doy       <- 90 # End day of year - need 365 if voltinism map 
+  end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap day be kept?
-  region_param  <- "CA" # Region [CONUS, EAST, WEST, or state (2-letter abbr.)]
+  region_param  <- "ND" # Region [CONUS, EAST, WEST, or state (2-letter abbr.)]
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
-  pems          <- 1 # Turn on/off pest event maps
+  pems          <- 0 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 0 # Make maps for egg stage
   mapL          <- 0 # Make maps for larval stage
   mapP          <- 0 # Make maps for pupal stage
-  out_dir       <- "STB_test" # Output dir
+  out_dir       <- "TABS_test" # Output dir
   out_option    <- 1 # Sampling frequency
   ncohort       <- 1 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
@@ -190,43 +193,44 @@ cat("\nWORKING DIR: ", prism_dir, "\n")
 output_dir <- paste0("/usr/local/dds/DDRP_B1/DDRP_results/", out_dir)
 
 # If the directory already exists, then a backup directory will be created that
-# contains the old run files. Old backup directories will be removed if needed.
+# contains the old run files. Old backup directories will be removed if present.
 if (file.exists(output_dir)) {
   
-  # Create a directory for the previous run to backup old run files to
+  # Create a directory for the previous run to backup old run files to and 
+  # delete old backup (if present)
   backup_dir <- paste0(output_dir, "/previous_run")
-  old_subdirs <- list.dirs(path = output_dir, recursive = FALSE)
+  unlink(backup_dir, recursive = TRUE)
+  dir.create(backup_dir)
   
-  # Delete an old backup directory if there is one present so that only most 
-  # recent run files will be backed up
+  # Make list of old directories from most recent run to be backed up
+  old_subdirs <- list.dirs(path = output_dir, recursive = FALSE) 
+  old_subdirs <- old_subdirs[!grepl("previous_run", old_subdirs)]
+  
   if (any(grepl("previous_run", old_subdirs))) {
     pos <- which(grepl("previous_run", old_subdirs))
     unlink(paste0(old_subdirs[pos], "/"), recursive = TRUE)
-    old_subdirs <- old_subdirs[-pos] # Remove old backup dir from subdir list
+    old_subdirs <- old_subdirs[-pos] # Remove backup dir from subdir list
   }
   
-  # Copy the subdirectories of the old run (e.g."Logs_metadata", "Misc_output")
-  # to the backup dir, and then delete them 
+  # Copy files from main dir and then subdirs to backup directory
+  file.copy(list.files(output_dir, full.names = TRUE), backup_dir) # main dir
   for (i in 1:length(old_subdirs)) {
     subdir <-  old_subdirs[i] %>%
       str_split(pattern = "/") %>%
       unlist %>%
       last()
     subdir_copy <- paste(backup_dir, subdir, sep = "/")
-    copyDirectory(old_subdirs[i], subdir_copy, recursive = TRUE)
+    dir.create(subdir_copy)
+    file.copy(list.files(old_subdirs[i], full.names = TRUE), subdir_copy)
     unlink(paste0(old_subdirs[i], "/"), recursive = TRUE)
   }
   
-  # Copy the main output files of the old run (main directory) to the backup dir
-  # and then delete them. This has to be done separately from copying sub-
-  # directories in order to avoid making nested copies of the backup folder
-  copyDirectory(output_dir, backup_dir, recursive = FALSE)
-  unlink(paste0(output_dir, "/*"), recursive = FALSE)
-  
+  # Remove old files now that they have been copied to backup folder
+  unlink(paste0(output_dir, "/*"))  
   cat("\n", str_wrap(paste0("EXISTING OUTPUT DIR: ", output_dir, ";\n", 
-                     "copied old run files to", backup_dir, "\n"), 
+                            "copied old run files to", backup_dir, "\n"), 
                      width = 80), sep = "") 
-
+  
 } else {
   dir.create(output_dir)
   cat("NEW OUTPUT DIR:", output_dir, "\n")
@@ -2197,25 +2201,13 @@ if (exclusions_stressunits) {
 # Subset NumGen raster stack by generation and then mask out areas in weighted
 # Adult rasters that do not belong to that generation 
 # Result will be a list of raster stacks for each generation of adults
-
-# Get raster bricks for adults; if climate stress is turned on, then
-# there will be three bricks to analyze
-if (exclusions_stressunits) {
-  Adult_fl_types <- c("Adult", "Adult_Excl1", "Adult_Excl2")
-} else {
-  Adult_fl_types <- c("Adult")
-}
-  
-RegCluster(round(ncores/10))
+RegCluster(round(ncores/6))
 
 # Run the overlay analysis and save results as raster bricks
-#for (type in Adult_fl_types) {
-foreach(type = Adult_fl_types, .packages = pkgs, 
-                        .inorder = TRUE) %:%
-  foreach(gen = 0:maxgens, .packages = pkgs, .inorder = TRUE) %dopar% {
-  #print(type)
-    #for (gen in 0:maxgens) {
-    #  print(gen)
+mskGenAdult <- foreach(gen = 0:maxgens, 
+                       .packages = pkgs, .inorder = TRUE) %dopar% {    
+#for (gen in 0:maxgens) {
+     #print(gen)
     # Extract data for each generation
     NumGen_msk <- raster::subset(brick("NumGen_all_merged.grd"),
     grep(paste0("Gen_", gen, "[.]"),
@@ -2223,16 +2215,23 @@ foreach(type = Adult_fl_types, .packages = pkgs,
     
     # Mask out areas in adults raster that do not belong to the gen. of interest
     # Then name each layer by the generation no. and the date
-    file_name <- paste0("Misc_output/", type, ".tif")
-  
-    Adults_byGen <- overlay(brick(file_name), NumGen_msk, 
+    Adults_byGen <- overlay(brick("Misc_output/Adult.tif"), NumGen_msk, 
       fun = function(x, y) {
         x[is.na(y[])] <- NA
         names(x) <- names(y)
         return(x)
-    }, datatype = "INT2S", filename = paste0(type, "_Gen", gen, ".tif"))
+    }, datatype = "INT2S", filename = paste0("Adult_Gen", gen, ".tif"))
     names(Adults_byGen) <- paste("Gen", gen, dats2, sep = "_")
-  }
+    
+    # Add climate stress exclusions if selected
+    if (exclusions_stressunits == 1) {
+      Adults_byGen_excl1 <- stack(Rast_Subs_Excl(Adults_byGen, "Excl1")) 
+      writeRaster(Adults_byGen_excl1, paste0("Adult_Excl1_Gen", gen, ".tif"))
+      Adults_byGen_excl2 <- stack(Rast_Subs_Excl(Adults_byGen, "Excl2"))
+      writeRaster(Adults_byGen_excl2, paste0("Adult_Excl2_Gen", gen, ".tif"))
+    }
+    
+}
 #}
 
 stopCluster(cl)
@@ -2243,7 +2242,8 @@ cat("\nDone\n", file = Model_rlogging, append = TRUE)
 cat("\nDone")
   
 # Delete NumGen grids now that they are no longer needed
-unlink(list.files(pattern = glob2rx(paste0("*.gri$|*.grd$"))))
+unlink(list.files(path = output_dir, 
+                  pattern = glob2rx(paste0("*.gri$|*.grd$"))))
 
 #### * Life stage with no. of generations plots ####
 if (exclusions_stressunits) {
@@ -2279,27 +2279,41 @@ if (exclusions_stressunits) {
 # not actually dispalyed on map.
 RegCluster(round(ncores/6))
 
-Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls), 
- .packages = pkgs, .inorder = TRUE) %:% 
+Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
+                                .packages = pkgs, .inorder = TRUE) %:%
   foreach(d = dats2, .packages = pkgs, .inorder = TRUE) %dopar% {
 
 #for (j in 1:length(Adult_byGen_fls)) {
  fl_type <- paste0(names(Adult_byGen_fls[j]))
- # for (d in dats2) {
-   #print(d)
+   #for (d in dats2) {
+    #print(d)
     #print(j)
 
     # Which layer # in the stack corresponds to the date? 
     lyr_no <- which(dats2 == d) 
     lyr_name <- paste0("\\b", lyr_no, "$\\b") # regex for getting exact match
     
-    # Subset the brick by the layer name
+    # Subset the brick by the layer name (date)
+    # Only include the layer if there are other data besides NA
+    # TO DO: for some versions of R or an R package (unknown which), the 
+    # "ConvDF" function will fail if there is only 1 pixel and that pixel == 0.  
+    # Tried to modify the function but it did not resolve the issue.
     fls <- Adult_byGen_fls[[j]]
     brk_sub <- brick()
+    
     for (f in 1:length(fls)) {
       brk <- brick(fls[[f]])[[grep(lyr_name, names(brick(fls[[f]])))]]
-      brk_sub <- addLayer(brk_sub, brk)
-      #print(f)
+      # Bug in "ConvDF" requires more than 1 row of data if the value == 0
+      # Not sure if same error will be thrown for -1 and -2 values so used
+      # all(freq$value <= 0) $ freq$count > 1
+      if (any(!is.na(values(brk)))) { # Don't include layers if all NA
+        freq <- data.frame(freq(brk, useNA = "no")) # Get frequency of all vals
+        if (all(freq$value <= 0) & freq$count > 1) { 
+          brk_sub <- addLayer(brk_sub, brk)
+        } else if (any(freq$value > 0)) { # Don't need to worry about non-0 vals
+          brk_sub <- addLayer(brk_sub, brk)
+        }
+      }
     }
     
     # For each stack layer, identify the generation, convert data to a 
@@ -2309,20 +2323,10 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
       r <- brk_sub[[i]]
       gen <- unlist(str_split(names(r), paste0("_Gen|[.]")))[2]
       #print(gen)
-      
-      # Only convert raster to data frame if any values are not NA 
-      # and either greater than 0 or less than 0 (less than 0 indicates climate 
-      # stress exclusions). Note that output maps may have a generation in 
-      # the legend that is not visible on the map - this is because other 
-      # life stages (in light gray) are present, not the adults.
-      # TO DO: maybe figure out a better way to show this.
-      if (any(values(r) >= 0 & !is.na(values(r))) | 
-          any(values(r) < 0 & !is.na(values(r)))) {
-        lyr_df <- ConvDF(r) # convert raster to a data frame
-        lyr_df$gen <- as.numeric(gen)
-        colnames(lyr_df)[1] <- "value"
-        df_list[[i]] <- lyr_df # add to the list 
-      }
+      lyr_df <- ConvDF(r) # convert raster to a data frame
+      lyr_df$gen <- as.numeric(gen)
+      colnames(lyr_df)[1] <- "value"
+      df_list[[i]] <- lyr_df # add to the list 
     }
     
     # Merge the list into a single data frame - this has data from all 
@@ -2344,7 +2348,10 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
     # be empty only if "odd_gen_map == 1" and there are no data for Gen1, Gen3, 
     # ... etc. (e.g., if there are only data for GenOW, which has been removed)
     # Currently "other stages" (not adults) are colored gray - may want to 
-    # consider coloring them more similarly to which generation they belong to
+    # consider coloring them more similarly to which generation they belong to.
+    # Note that output maps may have a generation in the legend that is not 
+    # visible on the map - this is because other life stages (in light gray) are 
+    # present, not the adults.
     if (nrow(mrgd) > 0) {
       if (fl_type == "Adult") {
         PlotMap(mrgd, d, "Adult relative pop. size for each gen.", 
