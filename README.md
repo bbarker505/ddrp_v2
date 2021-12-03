@@ -1,15 +1,3 @@
-<style type="text/css">
-
-body{ /* Normal  */
-      font-size: 14px;
-  }
-  p {line-height: 1.5em;
-  }
-  p.caption {
-  font-size: 0.75em;
-}
-</style>
-
 # An introduction to DDRP
 
 Invasive pests present a significant threat to agricultural production
@@ -32,7 +20,7 @@ of three biological control insects that have photoperiod-cued diapause
 # Program overview
 
 ![‘Flow diagram of DDRP’s modeling
-process’](https://github.com/bbarker505/ddrp_v2/images/model_overview.png)\]
+process’](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.png)\]
 
 # Inputs and outputs
 
