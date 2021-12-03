@@ -17,8 +17,8 @@ of three biological control insects that have photoperiod-cued diapause
 (Grevstad et al. in press), also available at
 [USPest.org](http://uspest.org/dd/dodmaps).
 
-[Flow diagram of DDRP’s modeling
-process](https://github.com/bbarker505/ddrp_v2/tree/master/images/model_overview.tif)
+![‘Flow diagram of DDRP’s modeling
+process’](https://github.com/bbarker505/ddrp_v2/tree/master/images/model_overview.tif)
 
 # Inputs and outputs
 
@@ -91,14 +91,14 @@ than statistical correlation-driven models; and 4) practicality, by
 focusing on models that can be used for decision support rather than
 more complex research-only models.
 
-# Example
+# Example output
 
-The video below shows the emergence of overwintered adults of emerald
-ash borer over the course of 2021. Areas where heat or cold stress has
-exceeded the stress limits for the species are predicted to be exlcluded
-from the potential distribution.
+The video below is a compilation of DDRP outputs depicting the emergence
+of overwintered adults of emerald ash borer over the course of 2021.
+Areas where heat or cold stress has exceeded the stress limits for the
+species are predicted to be excluded from the potential distribution.
 
-[Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2021.wmv)
+![‘Movie’](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2021.wmv)
 
 # References
 
