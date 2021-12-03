@@ -18,19 +18,23 @@ DDRP uses a process-based (mechanistic) approach to model temperature-dependent 
 
 # Program features
 
-Some of the major features of DDRP currently include: 
-1)	Degree-day parameters including durations and lower and upper developmental thresholds for four separate life stages (these are the egg, the larva or nymph, the pupa or pre-oviposition, and the adult), plus a separately parameterized overwintering stage.
-2)	The ability to spread the population using cohorts. Typically seven cohorts are specified but any number can be used. While cohorts offer the ability to spread the population in a Gaussian or other distribution, there is currently no distributed-delay function, meaning that the spread does not increase over multiple generations.
-3)	Phenological event maps (PEMs, also known as pest event maps), which depict estimated calendar dates of seasonal activities or population events. PEM parameters are specified as degree-days within each of the four (plus overwintering) stages. For example, DDRP can be parameterized to make first egg-hatch PEMs by setting a degree-day value near the completion of the egg stage, or at the beginning of the larval stage. If the former is used, then a second PEM, say for mid-larval development, could be parameterized using a value such as one-half of the degree-day total for larval development.
-4)	Climatic suitability maps, which show two levels of climatic suitability (moderate and severe stress exclusions). These are intended to indicate risk likelihood of short vs. long-term establishment but could also indicate migration zones, and uncertainties such as in species parameterization, model structure, and in the sources of climate data.
+Some of the major features of DDRP currently include:  
+1)	Degree-day parameters including durations and lower and upper developmental thresholds for four separate life stages (these are the egg, the larva or nymph, the pupa or pre-oviposition, and the adult), plus a separately parameterized overwintering stage.  
+2)	The ability to spread the population using cohorts. Typically seven cohorts are specified but any number can be used. While cohorts offer the ability to spread the population in a Gaussian or other distribution, there is currently no distributed-delay function, meaning that the spread does not increase over multiple generations.  
+3)	Phenological event maps (PEMs, also known as pest event maps), which depict estimated calendar dates of seasonal activities or population events. PEM parameters are specified as degree-days within each of the four (plus overwintering) stages. For example, DDRP can be parameterized to make first egg-hatch PEMs by setting a degree-day value near the completion of the egg stage, or at the beginning of the larval stage. If the former is used, then a second PEM, say for mid-larval development, could be parameterized using a value such as one-half of the degree-day total for larval development.  
+4)	Climatic suitability maps, which show two levels of climatic suitability (moderate and severe stress exclusions). These are intended to indicate risk likelihood of short vs. long-term establishment but could also indicate migration zones, and uncertainties such as in species parameterization, model structure, and in the sources of climate data.  
 
 # Setup and usage
 
-DDRP is an R script ("DDRP_v2.R") and must be within the same directory an auxilliary R script that contains program functions ("DDRP_v2_funcs.R"). DDRP has not yet been formatted into an R package because we designed the code to be run from the command line on a Linux server. The program can also be run on a Windows system but parallel processing capabilities will be limited. The user manual "DDRP_user_guide_and_platform_requirements_V4.pdf" is the only instruction document that is currently available, but stay tuned on the development of an R package for DDRP and a vignette on how to use the platform. See the instruction manual for details on program requirements, input data, input options, examples of command line arguments, types of output files, and run times.
+DDRP is an R script ("DDRP_v2.R") and must be within the same directory an auxilliary R script that contains program functions ("DDRP_v2_funcs.R"). DDRP has not yet been formatted into an R package because we designed the code to be run from the command line on a Linux server. The program can also be run on a Windows system but parallel processing capabilities will be limited. The user manual "DDRP_user_guide_and_platform_requirements_V4.pdf" is the only instruction document that is currently available, but stay tuned on the development of an R package for DDRP and a vignette on how to use the platform. The instruction manual provides information on program requirements, input data, input options, examples of command line arguments, types of output files, and run times.
 
 # Philosophy
 
-Our development of DDRP has strived to achieve a parsimonious balance of both model simplicity and accuracy, with a focus on four philosophies: 1) simplicity, in that existing data and results for well-studied, major invasive threats can be readily adapted for use; 2) universality, to accommodate a wide range of organisms; 3) robustness, by having the emphasis on use of first-principles that lend to process-driven rather than statistical correlation-driven models; and 4) practicality, by focusing on models that can be used for decision support rather than more complex research-only models. 
+Our development of DDRP has strived to achieve a parsimonious balance of both model simplicity and accuracy, with a focus on four philosophies:  
+1) simplicity, in that existing data and results for well-studied, major invasive threats can be readily adapted for use  
+2) universality, to accommodate a wide range of organisms  
+3) robustness, by having the emphasis on use of first-principles that lend to process-driven rather than statistical correlation-driven models  
+4) practicality, by focusing on models that can be used for decision support rather than more complex research-only models. 
 
 # Example output
 
