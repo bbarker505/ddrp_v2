@@ -15,12 +15,10 @@ Agricultural Pest Survey (CAPS) program, available at
 to predict the phenology and voltinism (number of generations per year)
 of three biological control insects that have photoperiod-cued diapause
 (Grevstad et al. in press), also available at
-[USPest](http://uspest.org/dd/dodmaps).
-
-# Program overview
+[USPest.org](http://uspest.org/dd/dodmaps).
 
 ![‘Flow diagram of DDRP’s modeling
-process’](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.png)\]
+process’](https://github.com/bbarker505/ddrp_v2/tree/master/images/model_overview.tif)
 
 # Inputs and outputs
 
@@ -94,6 +92,13 @@ focusing on models that can be used for decision support rather than
 more complex research-only models.
 
 # Example
+
+The video below shows the emergence of overwintered adults of emerald
+ash borer over the course of 2021. Areas where heat or cold stress has
+exceeded the stress limits for the species are predicted to be exlcluded
+from the potential distribution.
+
+<https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2021.wmv>
 
 # References
 
