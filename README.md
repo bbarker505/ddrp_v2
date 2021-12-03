@@ -18,7 +18,7 @@ of three biological control insects that have photoperiod-cued diapause
 [USPest.org](http://uspest.org/dd/dodmaps).
 
 ![‘Flow diagram of DDRP’s modeling
-process’](https://github.com/bbarker505/ddrp_v2/tree/master/images/model_overview.tif)
+process’](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.tif)
 
 # Inputs and outputs
 
