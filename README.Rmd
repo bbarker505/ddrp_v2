@@ -12,6 +12,10 @@ Invasive pests present a significant threat to agricultural production in the Un
 
 ![Model overview](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.tif?raw=true)
 
+<p>
+  <img src="/images/model_overview.tif")
+</p>
+
 # Inputs and outputs
 
 DDRP uses a process-based (mechanistic) approach to model temperature-dependent development, phenology, and climate suitability of target species. The platform requires gridded daily minimum and maximum temperature data (Tmin and Tmax, respectively), and information on the temperature requirements for development and survival of a species. We typically run DDRP using current and forecast climate data for the conterminous U.S. to provide real-time decision support for a species; however, the platform accepts data for any time frame or region, such as data for past years or for other countries. Model products include maps of the predicted potential distribution (climate-based risk of establishment), number of generations, and dates of phenological events (pest forecasts). The potential distribution is represented by areas where cold and heat stress accumulations have not exceeded the stress limits of a species.
@@ -36,7 +40,9 @@ Our development of DDRP has strived to achieve a parsimonious balance of both mo
 
 The video below is a compilation of DDRP outputs depicting the emergence of overwintered adults of emerald ash borer over the course of 2021. Areas where heat or cold stress has exceeded the stress limits for the species are predicted to be excluded from the potential distribution.
 
-![Movie](https://github.com/bbarker505/ddrp_v2/tree/master/images/EAB_2021.wmv?raw=true)
+<p>
+  <img src="/images/EAB_2021.wmv")
+</p>
 
 # References
 
