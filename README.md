@@ -25,17 +25,16 @@ overview](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overvie
 DDRP uses a process-based (mechanistic) approach to model
 temperature-dependent development, phenology, and climate suitability of
 target species. The platform requires gridded daily minimum and maximum
-temperature data (Tmin and Tmax, respectively), and information on the
-temperature requirements for development and survival of a species. We
-typically run DDRP using current and forecast climate data for the
-conterminous U.S. to provide real-time decision support for a species;
-however, the platform accepts data for any time frame or region, such as
-data for past years or for other countries. Model products include maps
-of the predicted potential distribution (climate-based risk of
-establishment), number of generations, and dates of phenological events
-(pest forecasts). The potential distribution is represented by areas
-where cold and heat stress accumulations have not exceeded the stress
-limits of a species.
+temperature data, and information on the temperature requirements for
+development and survival of a species. We typically run DDRP using
+current and forecast climate data for the conterminous U.S. to provide
+real-time decision support for a species; however, the platform accepts
+data for any time frame or region, such as data for past years or for
+other countries. Model products include maps of the predicted potential
+distribution (climate-based risk of establishment), number of
+generations, and dates of phenological events. The potential
+distribution is represented by areas where cold and heat stress
+accumulations have not exceeded the stress limits of a species.
 
 # Program features
 
