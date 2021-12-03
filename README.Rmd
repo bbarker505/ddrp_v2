@@ -10,7 +10,7 @@ output: md_document
 Invasive pests present a significant threat to agricultural production in the United States, yet decision support tools that can accurately predict where and when to expect pests have not yet been fully developed and utilized. Our spatial modeling platform known as DDRP (Degree-Days, Risk, and Phenological event mapping) was designed to provide regularly updated forecasts of the potential distribution (risk of establishment) and timing of seasonal activities (phenology) of pests [(Barker et al. 2020)](https://doi.org/10.1371/journal.pone.0244005). Currently we are using DDRP to produce regularly updated (every three days) forecasts for 15 high-risk pest insects for the USDA APHIS Cooperative Agricultural Pest Survey (CAPS) program, available at [USPest.org](http://uspest.org/CAPS). The program has also been adapted to predict the phenology and voltinism (number of generations per year) of three biological control insects that have photoperiod-cued diapause (Grevstad et al. in press), also available at [USPest.org](http://uspest.org/dd/dodmaps). 
 
 
-![Model overview](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.tif)
+![Model overview](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.tif?raw=true)
 
 # Inputs and outputs
 
@@ -36,7 +36,7 @@ Our development of DDRP has strived to achieve a parsimonious balance of both mo
 
 The video below is a compilation of DDRP outputs depicting the emergence of overwintered adults of emerald ash borer over the course of 2021. Areas where heat or cold stress has exceeded the stress limits for the species are predicted to be excluded from the potential distribution.
 
-![Movie](https://github.com/bbarker505/ddrp_v2/tree/master/images/EAB_2021.wmv)
+![Movie](https://github.com/bbarker505/ddrp_v2/tree/master/images/EAB_2021.wmv?raw=true)
 
 # References
 

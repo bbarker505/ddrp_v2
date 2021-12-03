@@ -18,7 +18,7 @@ of three biological control insects that have photoperiod-cued diapause
 [USPest.org](http://uspest.org/dd/dodmaps).
 
 ![Model
-overview](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.tif)
+overview](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.tif?raw=true)
 
 # Inputs and outputs
 
@@ -98,7 +98,7 @@ of overwintered adults of emerald ash borer over the course of 2021.
 Areas where heat or cold stress has exceeded the stress limits for the
 species are predicted to be excluded from the potential distribution.
 
-![Movie](https://github.com/bbarker505/ddrp_v2/tree/master/images/EAB_2021.wmv)
+![Movie](https://github.com/bbarker505/ddrp_v2/tree/master/images/EAB_2021.wmv?raw=true)
 
 # References
 
