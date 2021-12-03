@@ -31,10 +31,10 @@ DDRP is an R script ("DDRP_v2.R") and must be within the same directory an auxil
 # Philosophy
 
 Our development of DDRP has strived to achieve a parsimonious balance of both model simplicity and accuracy, with a focus on four philosophies:  
-1) simplicity, in that existing data and results for well-studied, major invasive threats can be readily adapted for use  
-2) universality, to accommodate a wide range of organisms  
-3) robustness, by having the emphasis on use of first-principles that lend to process-driven rather than statistical correlation-driven models  
-4) practicality, by focusing on models that can be used for decision support rather than more complex research-only models. 
+1) Simplicity, in that existing data and results for well-studied, major invasive threats can be readily adapted for use  
+2) Universality, to accommodate a wide range of organisms  
+3) Robustness, by having the emphasis on use of first-principles that lend to process-driven rather than statistical correlation-driven models  
+4) Practicality, by focusing on models that can be used for decision support rather than more complex research-only models  
 
 # Example output
 
