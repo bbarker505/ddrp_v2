@@ -25,6 +25,9 @@ src="images/model_overview.tif"
 raw=true
 />
 
+<img src="images/model_overview.tif" class="img-responsive" alt="">
+</div>
+
 # Inputs and outputs
 
 DDRP uses a process-based (mechanistic) approach to model
@@ -103,10 +106,8 @@ of overwintered adults of emerald ash borer over the course of 2021.
 Areas where heat or cold stress has exceeded the stress limits for the
 species are predicted to be excluded from the potential distribution.
 
-<img 
-src="images/EAB_2021.wmv"
-raw=true
-/>
+<img src="images/EAB_2021.wmv" class="img-responsive" alt="">
+</div>
 
 # References
 
