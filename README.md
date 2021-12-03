@@ -21,7 +21,7 @@ of three biological control insects that have photoperiod-cued diapause
 overview](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.tif?raw=true)
 
 <p align="left">
-<img src="/images/model_overview.tif"/>
+<img src='images/model_overview.tif'/>
 </p>
 
 # Inputs and outputs
@@ -103,7 +103,7 @@ Areas where heat or cold stress has exceeded the stress limits for the
 species are predicted to be excluded from the potential distribution.
 
 <p align="left">
-<img src="/images/EAB_2021.wmv"/>
+<img src='images/EAB_2021.wmv'/>
 </p>
 
 # References

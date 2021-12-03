@@ -13,7 +13,7 @@ Invasive pests present a significant threat to agricultural production in the Un
 ![Model overview](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.tif?raw=true)
 
 <p align="left">
-  <img src="/images/model_overview.tif"/>
+  <img src='images/model_overview.tif'/>
 </p>
 
 # Inputs and outputs
@@ -41,7 +41,7 @@ Our development of DDRP has strived to achieve a parsimonious balance of both mo
 The video below is a compilation of DDRP outputs depicting the emergence of overwintered adults of emerald ash borer over the course of 2021. Areas where heat or cold stress has exceeded the stress limits for the species are predicted to be excluded from the potential distribution.
 
 <p align="left">
-  <img src="/images/EAB_2021.wmv"/>
+  <img src='images/EAB_2021.wmv'/>
 </p>
 
 # References
