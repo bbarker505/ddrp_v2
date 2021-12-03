@@ -1,75 +1,120 @@
-# DDRP
+<style type="text/css">
 
-**
-Files in this repository replicate results presented in the climate suitability 
-study of Calonectria pseudonaviculata, a fungal pathogen that causes boxwood blight.  
-Repository contents include one R project, 11 R scripts, raw and
-processed CliMond data used for modeling (27 variables), the full and 
-subsampled occurrence record datasets used for modeling, and the CLIMEX 
-outfiles. 
+body{ /* Normal  */
+      font-size: 14px;
+  }
+  p {line-height: 1.5em;
+  }
+  p.caption {
+  font-size: 0.75em;
+}
+</style>
 
-All correlative modeling anlayses are conducted within the 
-project; however, the process-based CLIMEX model must be run within a 
-stand-alone software program using parameters presented in the manuscript. 
-The resulting maps and tables associated with correlative models may be slightly 
-different than those presented in the manuscript due to random sampling of 
-locations used for correlative models (both prior to and during modeling).
+# An introduction to DDRP
 
-Subsetted occurrence records and formatted climate data are provided in this
-repository; however, running the project will re-do the entire process
-of creating these files using the full occurrence records dataset
-(~/Records/Cps_locations_updated_Apr2021) and raw climate data (files in 
-~/CliMond_raw). 
+Invasive pests present a significant threat to agricultural production
+in the United States, yet decision support tools that can accurately
+predict where and when to expect pests have not yet been fully developed
+and utilized. Our spatial modeling platform known as DDRP (Degree-Days,
+Risk, and Phenological event mapping) was designed to provide regularly
+updated forecasts of the potential distribution (risk of establishment)
+and timing of seasonal activities (phenology) of pests [(Barker et
+al. 2020)](https://doi.org/10.1371/journal.pone.0244005). Currently we
+are using DDRP to produce regularly updated (every three days) forecasts
+for 15 high-risk pest insects for the USDA APHIS Cooperative
+Agricultural Pest Survey (CAPS) program, available at
+[USPest.org](http://uspest.org/CAPS). The program has also been adapted
+to predict the phenology and voltinism (number of generations per year)
+of three biological control insects that have photoperiod-cued diapause
+(Grevstad et al. in press), also available at
+[USPest](http://uspest.org/dd/dodmaps).
 
-## Installation
+# Program overview
 
-Simply clone the repository and follow the instructions below.
+![‘Flow diagram of DDRP’s modeling
+process’](https://github.com/bbarker505/ddrp_v2/images/model_overview.png)\]
 
-## Usage
+# Inputs and outputs
 
-Open the R project "Cps_climSuit_modeling.Rproj" in RStudio and click on the 
-"runner.R" script. Running this script will source nine auxillary scripts
-that conduct correlative modeling anlayses and creates tables and maps of
-model outputs produced by CLIMEX and correlatve modeling anlyses. 
-The "runner.R" script can also be run from the command line using RScript.
+DDRP uses a process-based (mechanistic) approach to model
+temperature-dependent development, phenology, and climate suitability of
+target species. The platform requires gridded daily minimum and maximum
+temperature data (Tmin and Tmax, respectively), and information on the
+temperature requirements for development and survival of a species. We
+typically run DDRP using current and forecast climate data for the
+conterminous U.S. to provide real-time decision support for a species;
+however, the platform accepts data for any time frame or region, such as
+data for past years or for other countries. Model products include maps
+of the predicted potential distribution (climate-based risk of
+establishment), number of generations, and dates of phenological events
+(pest forecasts). The potential distribution is represented by areas
+where cold and heat stress accumulations have not exceeded the stress
+limits of a species.
 
-The "Cps_model_functions.R" script has functions that are used by most 
-of the 9 auxillary scripts. 
+# Program features
 
-All files must remain in the exact same locations as the repository.
-Do not delete the full occurrence dataset or raw CliMond data.
+Some of the major features of DDRP currently include: 1) Degree-day
+parameters including durations and lower and upper developmental
+thresholds for four separate life stages (these are the egg, the larva
+or nymph, the pupa or pre-oviposition, and the adult), plus a separately
+parameterized overwintering stage. 2) The ability to spread the
+population using cohorts. Typically seven cohorts are specified but any
+number can be used. While cohorts offer the ability to spread the
+population in a Gaussian or other distribution, there is currently no
+distributed-delay function, meaning that the spread does not increase
+over multiple generations. 3) Phenological event maps (PEMs, also known
+as pest event maps), which depict estimated calendar dates of seasonal
+activities or population events. PEM parameters are specified as
+degree-days within each of the four (plus overwintering) stages. For
+example, DDRP can be parameterized to make first egg-hatch PEMs by
+setting a degree-day value near the completion of the egg stage, or at
+the beginning of the larval stage. If the former is used, then a second
+PEM, say for mid-larval development, could be parameterized using a
+value such as one-half of the degree-day total for larval development.
+4) Climatic suitability maps, which show two levels of climatic
+suitability (moderate and severe stress exclusions). These are intended
+to indicate risk likelihood of short vs. long-term establishment but
+could also indicate migration zones, and uncertainties such as in
+species parameterization, model structure, and in the sources of climate
+data.
 
-Output files produced by ENMTML will be saved to a folder in "~/ENMTML/Outfiles/" 
-that has the date that the model was run. Currently models are produced using
-both a subset of CliMond variables (5 variables) and a PCA-transformed dataset
-of the full CliMond dataset (27 variables). 
+# Setup and usage
 
-All figures (maps) of model outputs will be saved to a folder named "~/Final_figures"
+DDRP is an R script (“DDRP\_v2.R”) and must be within the same directory
+an auxilliary R script that contains program functions
+(“DDRP\_v2\_funcs.R”). DDRP has not yet been formatted into an R package
+because we designed the code to be run from the command line on a Linux
+server. The program can also be run on a Windows system but parallel
+processing capabilities will be limited. The user manual
+“DDRP\_user\_guide\_and\_platform\_requirements\_V4.pdf” is the only
+instruction document that is currently available, but stay tuned on the
+development of an R package for DDRP and a vignette on how to use the
+platform. See the instruction manual for details on program
+requirements, input data, input options, examples of command line
+arguments, types of output files, and run times.
 
-Please read the comments within each R script for further clarity on the process.
+# Philosophy
 
-## Packages
-The below R packages are used in the project. Please note that the ENMTML
-source code was slightly edited so that the Maxent model used a regularization
-multiplier of 4 (the default value is 1). This slightly edited version of 
-ENMTML is also available via my GitHub account.
+Our development of DDRP has strived to achieve a parsimonious balance of
+both model simplicity and accuracy, with a focus on four philosophies:
+1) simplicity, in that existing data and results for well-studied, major
+invasive threats can be readily adapted for use; 2) universality, to
+accommodate a wide range of organisms; 3) robustness, by having the
+emphasis on use of first-principles that lend to process-driven rather
+than statistical correlation-driven models; and 4) practicality, by
+focusing on models that can be used for decision support rather than
+more complex research-only models.
 
-cowplot
-ENMTML (https://github.com/bbarker505/ENMTML)
-ggalt
-ggrepel
-gtools
-here
-knitr
-maptools
-openxlsx
-raster
-rnaturalearth
-RStoolbox
-sf
-tidyverse
+# Example
 
-## History
+# References
 
-9/9/2021: Created repository
-11/2/2021: Last updates
+Barker, B. S., L. Coop, T. Wepprich, F. Grevstad, and G. Cook. 2020.
+DDRP: real-time phenology and climatic suitability modeling of invasive
+insects. PLoS ONE 15:e0244005.
+<https://doi.org/10.1371/journal.pone.0244005>.
+
+Grevstad, F. G., T. Wepprich, B. S. Barker, L. B. Coop, R. Shaw, and R.
+S. Bourchier. In press. Combining photoperiod and thermal responses to
+predict phenological mismatch for introduced insects. Ecological
+Applications.
