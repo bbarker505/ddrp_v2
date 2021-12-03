@@ -95,15 +95,15 @@ support rather than more complex research-only models
 
 # Example outputs
 
-Below is a compilation of DDRP outputs depicting the emergence of
-overwintered adults of emerald ash borer over the course of 2021. Areas
-where heat or cold stress has exceeded the stress limits for the species
-are predicted to be excluded from the potential distribution.
+The movie below shows DDRP outputs of the emergence of overwintered
+adults of emerald ash borer over the course of 2021. Areas where heat or
+cold stress has exceeded the stress limits for the species are predicted
+to be excluded from the potential distribution.
 
 ![Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2021.gif?raw=true)
 
 Another way to look at this (mostly) same information is with a
-phenological event map.
+phenological event map, below.
 
 ![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_Avg_PEMp0Excl2_20211231.png?raw=TRUE)
 
