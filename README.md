@@ -71,7 +71,9 @@ an auxilliary R script that contains program functions
 (“DDRP\_v2\_funcs.R”). DDRP has not yet been formatted into an R package
 because we designed the code to be run from the command line on a Linux
 server. The program can also be run on a Windows system but parallel
-processing capabilities will be limited. The user manual
+processing capabilities will be limited. The [user
+manual](https://github.com/bbarker505/ddrp_v2/blob/master/DDRP_user_guide_and_platform_requirements_V4.pdf)(Coop
+and Barker 2020)
 “DDRP\_user\_guide\_and\_platform\_requirements\_V4.pdf” is the only
 instruction document that is currently available, but stay tuned on the
 development of an R package for DDRP and a vignette on how to use the
@@ -106,12 +108,25 @@ phenological event map, below.
 
 ![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_Avg_PEMp0Excl2_20211231.png?raw=TRUE)
 
+# Acknowledgements
+
+The development of DDRP was funded by the USDA APHIS PPQ Cooperative
+Agricultural Pest Survey (CAPS) and Center for Plant Health Science and
+Technology (CPHST) programs, the USDA National Institute of Food and
+Agriculture (NIFA), and the Department of Defense Strategic
+Environmental Research and Development Program (SERDP).
+
 # References
 
 Barker, B. S., L. Coop, T. Wepprich, F. Grevstad, and G. Cook. 2020.
 DDRP: real-time phenology and climatic suitability modeling of invasive
 insects. PLoS ONE 15:e0244005.
 <https://doi.org/10.1371/journal.pone.0244005>.
+
+Coop, L., and B. S. Barker. 2020. Computing infrastructure requirements
+and user guide for hosting DDRP models. Prepared for APHIS PPQ and other
+collaborators. Available
+[here](https://github.com/bbarker505/ddrp_v2/blob/master/DDRP_user_guide_and_platform_requirements_V4.pdf)
 
 Grevstad, F. G., T. Wepprich, B. S. Barker, L. B. Coop, R. Shaw, and R.
 S. Bourchier. In press. Combining photoperiod and thermal responses to
