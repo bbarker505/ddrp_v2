@@ -4,6 +4,7 @@
 # needed to run the program.
 # 
 # Log of most recent changes -----
+# 3/18/22: Fixed bug in code to plot pest event maps
 # 10/26/20: Fixed code that allows for different DD calc methods to be used and
 #   removed "SimpDD" calculation (need to add Sine DD calc method later)
 # 8/15/20: Fixed bug in Stage Count plotting function
@@ -1605,58 +1606,102 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     log_capt <- paste("-", titl_orig) # Caption for log file
     start_year <- as.numeric(start_year)
     
-    # Format the data value column
-    df <- df %>% 
-      dplyr::filter(!(value %in% c(0, 366))) # remove day 0 and day 366
-    df$value <- round(df$value)
-    # TO DO: try to fix this so that don't end up with 6 weeks in Dec
-    # Currently must change value for day 364 and 365 to day 363, or end up w/
-    # 6 weeks in December for some years
-    df <- df %>% mutate(value = ifelse(value >= 364, 363, value))
     df$value_orig <- df$value # Create for ordering recoded values later
+        
+    # Remove climate stress exlcusion data (if any), to be added back below
+    excl_df <- filter(df, value_orig < 0) %>%
+      mutate(value = ifelse(value_orig == -2, "excl.-sev.",
+                                ifelse(value_orig == -1, "excl.-mod.", value)),
+             month_week = ifelse(value_orig == -2, "0_2",
+                                 ifelse(value_orig == -1, "0_1", value)))
+    df <- filter(df, value_orig >= 0)
     
+    # Format the data value column
+    # TO DO: why are there instances where there are 0 values?
+    df <- dplyr::filter(df, !(value == 0)) # remove day 0
+
     # Convert day of year to a date, convert date to a week of the year, and 
     # format to "month-day" format. First need to subtract 1 from all day of 
     # year values, because as.Date starts at day 1, not day 0
     df$value <- df$value - 1
-    df$value <- as.Date(df$value, origin = 
-                          as.Date(paste0(start_year, "-01-01"))) 
-
-    # The resulting values may have dates before Jan-1 (Dec-30, Dec-31) because 
-    # they occur in the same week as Jan-1. The ceiling_date function (dplyr)
-    # rounds up to the next month so that they begin on Jan-1 
-    # (e.g., 2019-12-31 == 2020-01-01)
-    df$value <- as.character(cut.POSIXt(strptime(df$value, format = "%Y-%m-%d"), 
-                                        breaks = "1 weeks"))
-    badDates <- df %>% filter(grepl(as.character(start_year - 1), value))
-    badDates$value <- as.character(ceiling_date(as.Date(badDates$value, 
-                                                format = "%Y-%m-%d"), "month"))
     
-    # Now replace old data with data that have fixed date
-    # Then add week of month column
-    df <- df %>% filter(!(grepl(as.character(start_year - 1), value))) %>%
-      bind_rows(., badDates)    
-    df$week <- ceiling(mday(df$value)/7)
+    # If start_doy is not 1 (first doy) then need to add on DOYs
+    # Pest event maps should always start at day 1, but currently DDRP does not
+    # produce any warning to make this clear
+    if (start_doy > 1) {
+      df$value <- df$value + start_doy
+    }
+    
+    # Convert value to date format
+    df$value <- as.Date(df$value, origin = 
+                          as.Date(paste0(start_year, "-01-01")))
+
+    # Group data by month and assign a week number.
+    # The result is a single date for each unique week in a month, such that
+    # the output map depicts dates binned by week (4 unique dates for most months)
+    df <- df %>% 
+      mutate(month = month(value)) %>%
+      group_by(month) %>%
+      mutate(week = as.character(
+        cut.Date(value, breaks = "1 week", labels = FALSE)) # Week numbers
+        ) %>% 
+      # Change week 6 to 5 for simplicity
+      mutate(week = as.numeric(ifelse(week == 6, 5, week))) %>%
+      ungroup() %>%
+      # Calculated number of completed weeks since start date
+      mutate(completed_weeks = as.numeric(value-min(value)) %/% 7) %>%
+      group_by(completed_weeks) %>%
+      # New value is a date for the week of month (week_date)
+      mutate(value = min(value)) %>% 
+      ungroup() 
+    
+    # Replace month and week numbers of original output data based on new value
+    # This is needed for the color table
+    df <- df %>% 
+      mutate(month = month(value)) %>%
+      group_by(month) %>%
+      # Creates new week numbers (smaller dates have lower rank)
+      mutate(week = dense_rank(value)) %>%
+      # Create month_week column to join to color table key
+      mutate(month_week = paste(month, week, sep = "_")) %>%
+      ungroup()
     
     # Reformat the dates to month-day (e.g., Jan-01, Jan-06, ...)
     # Clim. exc. values (-1 and -2) will become NA
     df$value <- format(strptime(df$value, format = "%Y-%m-%d"), 
                       format = "%b-%d")
-    
-    # Data frames w/ January may have 2 dates (Jan-01 + another) for week 1
-    # This will result in the key having 2 dates w/ same color
-    # Check to see if this is true, and if so, then add 1 week onto weeks for
-    # January
-    week1 <- df %>% filter(week == 1 & value_orig < 30) %>% distinct(value)
-    
-    if (nrow(week1) > 1) {
-      df <- df %>% 
-        mutate(week = ifelse(grepl("Jan-", value) & !grepl("Jan-01", value), 
-                             week + 1, week))
+  
+    # Add climate stress exclusion values back to output, if relevant
+    if (grepl("Excl1|Excl2", outfl)) {
+      df2 <- rbind(excl_df, dplyr::select(df, value, x, y, value_orig, month_week))
+    } else {
+      df2 <- df
     }
     
+    # If stress values are missing in data, then add a row ("fake" data)
+    # so the legend still shows the stress category (Excl1 = excl.-severe, 
+    # Excl2 = excl.-severe and excl.-moderate).
+    if (grepl("Excl1", outfl) & (!("excl.-sev." %in% df2$value))) {
+      df2 <- df2 %>% add_row(value = "excl.-sev.", x = NA, y = NA, 
+                             value_orig = -2, month_week = "0_2")
+    } else if (grepl("Excl2", outfl)) {
+      if (!("excl.-sev." %in% df2$value)) {
+        df2 <- df2 %>% add_row(value = "excl.-sev.", x = NA, y = NA, 
+                               value_orig = -2, month_week = "0_2")
+        }
+      if (!("excl.-mod." %in% df2$value)) {
+        df2 <- df2 %>% 
+          add_row(value = "excl.-mod.", x = NA, y = NA, 
+                  value_orig = -1, month_week = "0_1")
+      }
+    }
+    
+    # Order according to orig. vals (DOY and/or climate stress exclusion values)
+    df2$value <- factor(df2$value, levels = 
+                          unique(df2$value[order(as.numeric(as.character(df2$value_orig)))]))
+
     # Generate a key for colors for every week of the year, allowing up to 
-    # 5 weeks per month
+    # 5 weeks per month, as well as climate stress exclusion values
     cols_df <- data.frame("cols" = 
       c(Colfunc("deepskyblue", "blue3", 5),
         Colfunc("red", "darkred", 5), 
@@ -1669,86 +1714,26 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
         Colfunc("mediumpurple1", "purple3", 5),
         Colfunc("lightpink", "deeppink4", 5),
         Colfunc("lightgoldenrod", "gold4", 5), 
-        Colfunc("cadetblue1", "cornflowerblue", 5))) # Colors
-    weeks_df <- data.frame("mnth" = c(rep("Jan", 5), rep("Feb", 5), 
-      rep("Mar", 5), rep("Apr", 5), rep("May", 5), rep("Jun", 5), rep("Jul", 5),
-      rep("Aug", 5), rep("Sep", 5), rep("Oct", 5), rep("Nov", 5), 
-      rep("Dec", 5))) # 5 weeks per month
-    weeks_df <- data.frame(weeks_df %>% group_by(mnth) %>% # Group by month
-      mutate(mnth_wk = row_number()) %>% # Assign unique row # to rep. week #
-      mutate(mnth_wk = paste(mnth, mnth_wk, sep = "_")))
-    
-    # Attach those data frames to make the key
-    col_key <- cbind(cols_df, weeks_df)
-    col_key$mnth <- as.character(col_key$mnth) # Add which month
-    
-    # Extract all unique weeks from data,and count no. of bins (months)
-    dats <- df %>% distinct(value) 
-    dats$mnth <- str_split_fixed(dats$value, pattern = "-", 2)[,1]
-    dats <- dats %>% arrange(., value) %>%
-      group_by(mnth) %>% # Group by month
-      # Assign a unique value to each row in a month - used for joining later
-      # This will also be done for other data frames below 
-      
-      #mutate(week = ceiling(day(mnth_day) / 7)) %>%
-      left_join(dplyr::select(df, value, week), by = "value") %>%
-      mutate(mnth_day = format(as.Date(value, "%b-%d"))) %>%
-      mutate(mnth_wk = paste(mnth, week, sep = "_")) %>%
-      distinct(., .keep_all = TRUE) %>%
-      arrange(mnth_day)
+        Colfunc("cadetblue1", "cornflowerblue", 5),
+        "gray70", "gray30")) # Climate stress. excl. colors
+    # Data frame of weeks and months, used to join colors with data
+    weeks_df <- data.frame(
+      "month" = unlist(map(1:12, function(i) { rep(i, 5)} )),
+      "week" = rep(1:5, 12)) %>%
+      mutate(month_week = paste(month, week, sep = "_")) %>%
+      dplyr::select(month_week) %>%
+      add_row(month_week = c("0_1", "0_2")) # Climate stress exclusion values
 
-    # Necessary for removing weeks that are not in the data in the col_key2
-    mnth_ct <- data.frame(dats %>% group_by(mnth) %>% 
-      dplyr::mutate(freq = n_distinct(value))) %>%
-      group_by(mnth) #%>% # Group by month
+    # Attach colors and weeks data frames, join to data to be plotted, 
+    # keeping only colors needed for plotting.
+    col_key <- cbind(cols_df, weeks_df) %>%
+      semi_join(., df2, by = "month_week") %>% 
+      left_join(., dplyr::select(df2, value, month_week), by = "month_week") %>%
+      distinct(month_week, .keep_all = TRUE)
 
-    # Finally filter unncessary weeks out of generic color key (some months 
-    # have only 4 weeks)
-    col_key2 <- dplyr::semi_join(col_key, dats, by = "mnth") %>% 
-      dplyr::left_join(., mnth_ct, by = c("mnth_wk")) %>%
-      na.omit %>%
-      dplyr::select(cols, value)
-    
-    # Format the dates dataframe (dats2) for joining to col_key2 (color key)
-    dats2 <- data.frame(dplyr::select(dats, value, mnth) %>% 
-                          arrange(mnth, value))
-
-    # Attach the colors to the value and format with needed colunms, etc.
-    col_key2 <- left_join(col_key2, dplyr::select(dats2, -mnth), by = "value")
-    col_key2$year <- start_year
-    col_key2$date <- paste0(col_key2$year, "-", col_key2$value)
-    col_key2$date <- as.Date(col_key2$date, format = "%Y-%b-%d")
-    col_key2 <- col_key2 %>% dplyr::select(value, cols)
-
-    # If data have climate stress exclusion values, need to reformat data
-    # because values are non-dates; recode them, then bind back to original
-    # data. Finally add grayscale shades to the color key for legend.
-    if (any(df$value_orig < 0)) {
-      df2 <- filter(df, value_orig < 0)
-      df2 <- mutate(df2, value = ifelse(df2$value_orig == -2, "excl.-sev.", 
-                                 ifelse(df2$value_orig == -1, "excl.-mod.", 
-                                        df2$value)))
-      df3 <- rbind(filter(df, value_orig > 0), df2)
-      # Order according to orig. vals (DOY)
-      df3$value <- factor(df3$value, levels = 
-        unique(df3$value[order(as.numeric(as.character(df3$value_orig)))]))
-      } else {
-      df3 <- df
-      df3$value <- factor(df3$value, levels = 
-        unique(df3$value[order(as.numeric(as.character(df3$value_orig)))]))
-      }
-      if (any(df$value_orig == -1)) {
-        col_key2 <- rbind(data.frame("value" = "excl.-mod.", "cols" = "gray70"), 
-                          col_key2)
-      }
-      if (any(df$value_orig == -2)) {
-        col_key2 <- rbind(data.frame("value" = "excl.-sev.", "cols" = "gray30"), 
-                          col_key2)
-     }
-
-    # Make legend colors df a vector and plot results
-    cols <- setNames(as.character(col_key2$cols), col_key2$value)
-    p <- Base_map(df3) + 
+    # Make legend colors data frame a vector and plot results
+    cols <- setNames(as.character(col_key$cols), col_key$value)
+    p <- Base_map(df2) + 
       scale_fill_manual(values = cols, name = str_wrap(paste0(lgd), 
                                                        width = 15)) +
       labs(title = str_wrap(paste(sp, titl), width = titl_width), 
