@@ -14,7 +14,7 @@ Agricultural Pest Survey (CAPS) program, available at
 [USPest.org](http://uspest.org/CAPS). The program has also been adapted
 to predict the phenology and voltinism (number of generations per year)
 of three biological control insects that have photoperiod-cued diapause
-(Grevstad et al. in press), also available at
+[(Grevstad et al. 2022)](https://doi.org/10.1002/eap.2557), also available at
 [USPest.org](http://uspest.org/dd/dodmaps).
 
 ![Model
@@ -97,16 +97,24 @@ support rather than more complex research-only models
 # Example outputs
 
 The movie below shows DDRP outputs of the emergence of overwintered
-adults of emerald ash borer over the course of 2021. Areas where heat or
-cold stress has exceeded the stress limits for the species are predicted
-to be excluded from the potential distribution.
+adults of emerald ash borer, *Agrilus planipennis*, over the course of 2022. The potential distribution is defined as areas not excluded by severe or moderate climate stress (excl.-sev and excl.-mod, respectively). 
 
-![Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2021.gif?raw=true)
+![Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2022_Adults.gif?raw=true)
 
 Another way to look at this (mostly) same information is with a
-phenological event map, below.
+phenological event map for the emergence of overwintered emerald ash borer adults, below.  
 
-![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_Avg_PEMp0Excl2_20211231.png?raw=TRUE)
+![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_Avg_PEMp0Excl2_20222231.png?raw=TRUE)
+
+Generation and stage maps for emerald ash borer in 2022 in the movie below depict the expected life stage of any given generation over the year.  
+
+![Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2022_stageCount.gif?raw=true)
+
+Maps of voltinism (number of generations per year) can provide insight into expected pest pressure over the year. The maps below shows expected voltinism for light brown apple moth, *Epiphyas postvittana*, a major pest of apple and pear. The first map depicts the potential distribution as areas not excluded by severe climate stress, whereas the second maps depicts it as areas not excluded by severe or moderate climate stress.
+
+![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/LBAM_NumGen_Excl1_20221231.png?raw=TRUE)
+
+![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/LBAM_NumGen_Excl2_20221231.png?raw=TRUE)
 
 # Acknowledgements
 
@@ -129,6 +137,6 @@ collaborators. Available
 [here](https://github.com/bbarker505/ddrp_v2/blob/master/DDRP_user_guide_and_platform_requirements_V4.pdf).
 
 Grevstad, F. G., T. Wepprich, B. S. Barker, L. B. Coop, R. Shaw, and R.
-S. Bourchier. In press. Combining photoperiod and thermal responses to
+S. Bourchier. 2022. Combining photoperiod and thermal responses to
 predict phenological mismatch for introduced insects. Ecological
-Applications.
+Applications. e2557. <https://doi.org/10.1002/eap.2557.
