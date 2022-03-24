@@ -99,7 +99,7 @@ support rather than more complex research-only models
 The movie below shows DDRP outputs of the emergence of overwintered
 adults of emerald ash borer, *Agrilus planipennis*, over the course of 2022. The potential distribution is defined as areas not excluded by severe or moderate climate stress (excl.-sev and excl.-mod, respectively). 
 
-![Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2022_Adults.gif?raw=true)
+![Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2022_Adults.png)
 
 Another way to look at this (mostly) same information is with a
 phenological event map for the emergence of overwintered emerald ash borer adults, below.  
