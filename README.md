@@ -139,4 +139,4 @@ collaborators. Available
 Grevstad, F. G., T. Wepprich, B. S. Barker, L. B. Coop, R. Shaw, and R.
 S. Bourchier. 2022. Combining photoperiod and thermal responses to
 predict phenological mismatch for introduced insects. Ecological
-Applications. e2557. <https://doi.org/10.1002/eap.2557.
+Applications. e2557. <https://doi.org/10.1002/eap.2557>.
