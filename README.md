@@ -108,9 +108,9 @@ phenological event map for the emergence of overwintered emerald ash borer adult
 
 Generation and stage maps for emerald ash borer in 2022 in the movie below depict the expected life stage of any given generation over the year.  
 
-![Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2022_stageCount.gif?raw=true)
+![Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2022_StageCount.png)
 
-Maps of voltinism (number of generations per year) can provide insight into expected pest pressure over the year. The maps below shows expected voltinism for light brown apple moth, *Epiphyas postvittana*, a major pest of apple and pear. The first map depicts the potential distribution as areas not excluded by severe climate stress, whereas the second maps depicts it as areas not excluded by severe or moderate climate stress.
+Maps of voltinism (number of generations per year) can provide insight into expected pest pressure over the year. The maps below shows expected voltinism for light brown apple moth, *Epiphyas postvittana*, a major pest of economically important fruits including apple, pear, orange, and grape. The first map depicts the potential distribution as areas not excluded by severe climate stress, whereas the second maps depicts it as areas not excluded by severe or moderate climate stress.
 
 ![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/LBAM_NumGen_Excl1_20221231.png?raw=TRUE)
 
