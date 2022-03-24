@@ -104,7 +104,7 @@ adults of emerald ash borer, *Agrilus planipennis*, over the course of 2022. The
 Another way to look at this (mostly) same information is with a
 phenological event map for the emergence of overwintered emerald ash borer adults, below.  
 
-![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_Avg_PEMp0Excl2_20222231.png?raw=TRUE)
+![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_Avg_PEMp0Excl2_20221231.png)
 
 Generation and stage maps for emerald ash borer in 2022 in the movie below depict the expected life stage of any given generation over the year.  
 
