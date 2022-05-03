@@ -1,3 +1,9 @@
+<img src="https://github.com/bbarker505/ddrp_v2/blob/master/images/DDRP_logo2.png" width="300"/> 
+
+👥 Brittany Barker, Len Coop, Tyson Wepprich, Gericke Cook, and Dan Upper
+
+Questions? 📧 bbarker505@gmail.com or brittany.barker@oregonstate.edu
+
 # An introduction to DDRP
 
 Invasive pests present a significant threat to agricultural production
