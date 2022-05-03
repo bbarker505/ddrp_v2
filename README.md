@@ -1,3 +1,7 @@
+👥 Brittany Barker, Len Coop, Tyson Wepprich, Gericke Cook, and Dan Upper
+
+Questions? 📧 bbarker505@mgail.com or brittany.barker@oregonstate.edu
+
 # An introduction to DDRP
 
 Invasive pests present a significant threat to agricultural production
@@ -16,6 +20,11 @@ to predict the phenology and voltinism (number of generations per year)
 of three biological control insects that have photoperiod-cued diapause
 [(Grevstad et al. 2022)](https://doi.org/10.1002/eap.2557), also available at
 [USPest.org](http://uspest.org/dd/dodmaps).
+
+<p float="left">
+  <img src="https://github.com/bbarker505/ddrp_v2/blob/master/images/logo2.png" width="200" />
+  <img src="https://github.com/bbarker505/ddrp_v2/blob/master/images/usda-logo_original.png" width="100" /> 
+</p>
 
 ![Model
 overview](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.png?raw=true)
