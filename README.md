@@ -1,4 +1,4 @@
-<img src="https://github.com/bbarker505/ddrp_v2/blob/master/images/DDRP_logo2.png" width="300"/> 
+<img src="https://github.com/bbarker505/ddrp_v2/blob/master/images/DDRP_logo2.png" width="300"/> <img src="https://github.com/bbarker505/ddrp_v2/blob/master/images/OSU_IPMC_horizontal_2C_O_over_B.png" width="300"/> 
 
 👥 Brittany Barker, Len Coop, Tyson Wepprich, Gericke Cook, and Dan Upper
 
