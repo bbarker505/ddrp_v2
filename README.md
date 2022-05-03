@@ -2,9 +2,10 @@
 
 <img src="https://github.com/bbarker505/ddrp_v2/blob/master/images/DDRP_logo2.png" width="300"/> <img src="https://github.com/bbarker505/ddrp_v2/blob/master/images/OSU_IPMC_horizontal_2C_O_over_B.png" width="300"/> 
 
-👥 Brittany Barker, Len Coop, Tyson Wepprich, Gericke Cook, and Dan Upper
+👥 Brittany Barker, Len Coop, Tyson Wepprich, Gericke Cook, and Dan Upper  
 
-Questions? 📧 bbarker505@gmail.com or brittany.barker@oregonstate.edu
+Questions? 📧 bbarker505@gmail.com or brittany.barker@oregonstate.edu  
+
 Invasive pests present a significant threat to agricultural production
 in the United States, yet decision support tools that can accurately
 predict where and when to expect pests have not yet been fully developed
