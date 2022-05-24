@@ -15,7 +15,7 @@ updated forecasts of the potential distribution (risk of establishment)
 and timing of seasonal activities (phenology) of pests [(Barker et
 al. 2020)](https://doi.org/10.1371/journal.pone.0244005). Currently we
 are using DDRP to produce regularly updated (every three days) forecasts
-for 15 high-risk pest insects for the USDA APHIS Cooperative
+for 16 high-risk pest insects for the USDA APHIS Cooperative
 Agricultural Pest Survey (CAPS) program, available at
 [USPest.org](http://uspest.org/CAPS). The program has also been adapted
 to predict the phenology and voltinism (number of generations per year)
