@@ -4,6 +4,9 @@
 # needed to run the program.
 # 
 # Log of most recent changes -----
+# 8/25/22: Changed PEM color palettes
+# 7/2/22: Edit CombineMaps function to increase tolerance in merge raster function
+# 6/29/22: Added features for processing and mapping E-OBS and CDAT data
 # 3/18/22: Fixed bug in code to plot pest event maps
 # 10/26/20: Fixed code that allows for different DD calc methods to be used and
 #   removed "SimpDD" calculation (need to add Sine DD calc method later)
@@ -49,6 +52,10 @@ Assign_extent <- function(region_param = paste0(region_param)) {
                 "NORTHCENTRAL" = extent(-104.3, -80.2, 35.7, 49.4),
                 "SOUTHEAST"    = extent(-107.1, -75.0, 24.54, 39.6),
                 "NORTHEAST"    = extent(-84.2, -64.3, 36.9, 48.1),
+                "N_AMERICA"    = extent(-159.8597, -48.08864, 18.57516, 61.04535),
+                #"N_AMERICA"    = extent(-106, -70, 44, 56),
+                "EUROPE"       = extent(-11, 45, 35.5, 71.5),
+                "CHINA"        = extent(70, 140, 15, 55),
                 "AL"           = extent(-88.5294, -84.7506, 30.1186, 35.1911),
                 "AR"           = extent(-94.8878, -89.5094, 32.8796, 36.6936),
                 "AZ"           = extent(-115, -108.98, 31.2, 37),
@@ -116,19 +123,25 @@ Assign_extent <- function(region_param = paste0(region_param)) {
 
 #### (2). Base_map: base map for summary plots ####
 # Base features used for all summary (PNG) maps in "PlotMap" function
-# The "coord_quickmap" function allows the state/region of interest to be 
-# plotted (otherwise CONUS is plotted)
+# The "coord_quickmap" function allows the state/region of interest to be plotted
 # geom_raster is faster than geom_tile
 # Input data are in a data frame (= df) format
 Base_map <- function(df) {
-  p <- ggplot(states, aes(x = long, y = lat)) + 
+  
+  # Data to use for base map (i.e. target region - will usually be US states)
+  if (region_param %in% c("N_AMERICA", "EUROPE", "CHINA")) {
+    base_map <- map_data("world") 
+  } else {
+    base_map <- map_data("state")
+  }
+  
+  # Base map plot
+  p <- ggplot(base_map, aes(x = long, y = lat)) + 
     geom_raster(data = df, aes(x = x, y = y, fill = value)) + 
     geom_path(aes(group = group), color = "black", lwd = 0.4) +
-    #theme_map(base_size = base_size) +
     coord_quickmap(xlim = c(REGION@xmin, REGION@xmax), 
                    ylim = c(REGION@ymin, REGION@ymax), expand = FALSE) 
-    #coord_cartesian(xlim = c(REGION@xmin, REGION@xmax), 
-    #ylim = c(REGION@ymin, REGION@ymax))
+  
 }
 
 #### (3). CohortDistrib: cohort emergence distribution ####
@@ -161,8 +174,9 @@ CombineMaps <- function(brick_files, type, cohort) {
   # Merge tiles back together for the input cohort
   fls_by_cohort <- fls_by_type[grep(pattern = paste0("cohort", cohort), 
                                     x = fls_by_type, fixed = TRUE)]
-  mrgd <- Reduce(raster::merge, lapply(fls_by_cohort, brick))
-  #mrgd <- SpaDES.tools::mergeRaster(brk_by_cohort)
+  mrgd <- Reduce(function(...)raster::merge(..., tolerance = 1), 
+                 lapply(fls_by_cohort, brick))
+  #mrgd <- Reduce(raster::merge, lapply(fls_by_cohort, brick))
   writeRaster(mrgd, filename = paste0(type, "_cohort", cohort, "_all"),
               overwrite = TRUE, datatype = "INT2S", format = "GTiff")
 }
@@ -384,7 +398,7 @@ DailyLoop <- function(cohort, tile_num, template) {
     stage_dd_cohort <- stage_dd[as.integer(cohort), ]  
     
     # Get temperature matrices for the day
-    if (region_param %in% c("CONUS", "EAST")) {
+    if (region_param %in% c("CONUS", "EAST", "N_AMERICA", "EUROPE", "CHINA")) {
       tmax <- as.numeric(tmax_list[[tile_num]][[d]])
       tmin <- as.numeric(tmin_list[[tile_num]][[d]])
     } else {
@@ -782,7 +796,7 @@ DailyLoop <- function(cohort, tile_num, template) {
     for (i in 1:length(pem_list)) {
       pem_mat <- pem_list[[i]]
       pem_rast <- Mat_to_rast(pem_mat, ext, template)
-      if (region_param %in% c("CONUS", "EAST")) {
+      if (region_param %in% c("CONUS", "EAST", "N_AMERICA", "EUROPE", "CHINA")) {
         SaveRaster(pem_rast, cohort, tile_num, names(pem_list[i]), "INT2U")
       } else {
         SaveRaster(pem_rast, cohort, NA, names(pem_list[i]), "INT2U")
@@ -829,7 +843,6 @@ DailyLoop <- function(cohort, tile_num, template) {
   gc() # Clear items from the environment - is this necessary?
   
 }
-
 
 #### (11). Degree Day calculation methods #### 
 # Equations used to calculate degree-days
@@ -1699,23 +1712,24 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     # Order according to orig. vals (DOY and/or climate stress exclusion values)
     df2$value <- factor(df2$value, levels = 
                           unique(df2$value[order(as.numeric(as.character(df2$value_orig)))]))
-
+    
     # Generate a key for colors for every week of the year, allowing up to 
     # 5 weeks per month, as well as climate stress exclusion values
-    cols_df <- data.frame("cols" = 
-      c(Colfunc("deepskyblue", "blue3", 5),
-        Colfunc("red", "darkred", 5), 
-        Colfunc("yellow", "gold3", 5),
-        Colfunc("lightgreen", "darkgreen", 5), 
-        Colfunc("magenta", "magenta4", 5),
-        Colfunc("sienna1", "sienna4", 5),
-        Colfunc("cyan", "cyan4", 5),
-        Colfunc("greenyellow", "chartreuse4", 5),
-        Colfunc("mediumpurple1", "purple3", 5),
-        Colfunc("lightpink", "deeppink4", 5),
-        Colfunc("lightgoldenrod", "gold4", 5), 
-        Colfunc("cadetblue1", "cornflowerblue", 5),
-        "gray70", "gray30")) # Climate stress. excl. colors
+    cols_df <- data.frame(
+      "cols" = c(Colfunc( "#d9d2e9", "#351e75", 5), # indigo
+                 Colfunc( "#9fc5e8", "#0000ff", 5), # dark blue
+                 Colfunc("#b3ecff", "#0092d2", 5), # sky blue
+                 Colfunc("#acf9e3", "#33b3a6", 5),  # teal-cyan
+                 Colfunc( "#b7ffbf","#145214", 5), # green
+                 Colfunc( "#cdff03","#2ec20a", 5), # yellow-green
+                 Colfunc("#ffff00", "#7a6108", 5), # yellow-brown
+                 Colfunc("#ffd88f", "#fe8116", 5), # orange
+                 Colfunc("#f4cccc", "#ff0000", 5), # red
+                 Colfunc("#e6b8af", "#85200c", 5), # brick
+                 Colfunc("#ffb0da", "#ff00ff", 5), # magenta
+                 Colfunc("#e1bee7", "#8e24aa", 5), #purple
+                 "gray70", "gray30")) # Climate stress grays
+
     # Data frame of weeks and months, used to join colors with data
     weeks_df <- data.frame(
       "month" = unlist(map(1:12, function(i) { rep(i, 5)} )),
@@ -1968,7 +1982,7 @@ RegCluster <- function(value) {
 # outnam = output file name; datatype = number of digits int the 
 # output rasters (see "raster" library specificatoins)
 SaveRaster <- function(r, cohort, tile_num, outnam, datatype) {
-  if (region_param %in% c("CONUS", "EAST")) {
+  if (region_param %in% c("CONUS", "EAST", "N_AMERICA", "EUROPE", "CHINA")) {
     #daily_logFile <- paste0("Daily_loop_cohort", cohort, "_", tile_num, ".txt")
     writeRaster(r, file = paste0(outnam, "_cohort", cohort, "_tile", tile_num),
                 format = "GTiff",  datatype = datatype, overwrite = TRUE)

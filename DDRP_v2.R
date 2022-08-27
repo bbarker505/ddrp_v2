@@ -2,6 +2,14 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
+# 8/26/22: Output a raster for StageCount for present day, new PEM colors
+# 6/22/22: Added ability to use CDAT data for China; simplified code for 
+#  importing different types of data
+# 6/9/22: Added ability to use E-OBS data for Europe
+# 5/25/21: Fixed very bad code that under certain circumstance will delete
+#  files from non-target directories when files from previous run are being  
+#  copied to a new folder ("/output_dir/previous_run") and then deleted from   
+#  the main "/output_dir."
 # 11/10/20: Modified Adult by Gen code inc. summary map function because of 
 #   errors in plotting FCM maps and also some clim. stress vals not correct.
 #   Also removed "R.utils" package and just coded manually for backup folder.
@@ -149,20 +157,20 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "TABS" # Default species to use
+  spp           <- "SUNP" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
-  start_year    <- "2020" # Year to use
+  start_year    <- "2022" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
-  keep_leap     <- 1 # Should leap day be kept?
-  region_param  <- "ND" # Region [CONUS, EAST, WEST, or state (2-letter abbr.)]
+  keep_leap     <- 0 # Should leap day be kept?
+  region_param  <- "AL" # Region 
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
-  pems          <- 0 # Turn on/off pest event maps
+  pems          <- 1 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 0 # Make maps for egg stage
   mapL          <- 0 # Make maps for larval stage
   mapP          <- 0 # Make maps for pupal stage
-  out_dir       <- "TABS_test" # Output dir
+  out_dir       <- "NA" # Output dir
   out_option    <- 1 # Sampling frequency
   ncohort       <- 1 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
@@ -178,12 +186,19 @@ params_dir <- "/usr/local/dds/DDRP_B1/spp_params/"
 #if (grepl("16", start_year, perl = TRUE)) {
 #  base_dir <- "/mnt/ssd1/PRISM/"
 #} else {
-  base_dir <- "/data/PRISM/"
+#  base_dir <- "/data/PRISM/"
 #}
-prism_dir <- paste0(base_dir, start_year)
+
+if (forecast_data == "PRISM") {
+  base_dir <- "/data/PRISM/"
+} else {
+  base_dir <- paste0("/data/", forecast_data, "/")
+} 
+
+forecast_dir <- paste0(base_dir, start_year)
 
 cat("\nBASE DIR: ", base_dir, "\n")
-cat("\nWORKING DIR: ", prism_dir, "\n")
+cat("\nWORKING DIR: ", forecast_dir, "\n")
 
 #### * Output directory, log file, and error message file ####
 # MUST remove .tif files or script will crash during processing because it will 
@@ -202,35 +217,24 @@ if (file.exists(output_dir)) {
   unlink(backup_dir, recursive = TRUE)
   dir.create(backup_dir)
   
-  # Make list of old directories from most recent run to be backed up
-  old_subdirs <- list.dirs(path = output_dir, recursive = FALSE) 
-  old_subdirs <- old_subdirs[!grepl("previous_run", old_subdirs)]
+  # Copy dirs and files to backup dir. Exclude the new backup dir using !grepl.
+  flsToCopy <- list.files(output_dir, full.names = TRUE)
+  flsToCopy <- flsToCopy[!grepl(pattern = backup_dir, flsToCopy)] 
+  #flsToCopy <- str_subset(flsToCopy, pattern = backup_dir, negate = TRUE)
+  file.copy(flsToCopy, backup_dir, recursive = TRUE)
   
-  if (any(grepl("previous_run", old_subdirs))) {
-    pos <- which(grepl("previous_run", old_subdirs))
-    unlink(paste0(old_subdirs[pos], "/"), recursive = TRUE)
-    old_subdirs <- old_subdirs[-pos] # Remove backup dir from subdir list
+  # Delete remaining folders and files now that they have been backed up
+  # First ensure that flsToCopy actually contains output_dir in names to 
+  # avoid potential fiascos of deleting files from other non-target directories
+  if (all(grepl(output_dir, flsToCopy))) {
+    lapply(flsToCopy, unlink, recursive = TRUE)
   }
-  
-  # Copy files from main dir and then subdirs to backup directory
-  file.copy(list.files(output_dir, full.names = TRUE), backup_dir) # main dir
-  for (i in 1:length(old_subdirs)) {
-    subdir <-  old_subdirs[i] %>%
-      str_split(pattern = "/") %>%
-      unlist %>%
-      last()
-    subdir_copy <- paste(backup_dir, subdir, sep = "/")
-    dir.create(subdir_copy)
-    file.copy(list.files(old_subdirs[i], full.names = TRUE), subdir_copy)
-    unlink(paste0(old_subdirs[i], "/"), recursive = TRUE)
-  }
-  
-  # Remove old files now that they have been copied to backup folder
-  unlink(paste0(output_dir, "/*"))  
-  cat("\n", str_wrap(paste0("EXISTING OUTPUT DIR: ", output_dir, ";\n", 
-                            "copied old run files to", backup_dir, "\n"), 
+
+  cat("\n", str_wrap(paste0("EXISTING OUTPUT DIR: ", output_dir, "\n", 
+                            "moved old run files to", backup_dir, "\n"), 
                      width = 80), sep = "") 
   
+  # If no files to backup, don't do anything
 } else {
   dir.create(output_dir)
   cat("NEW OUTPUT DIR:", output_dir, "\n")
@@ -250,10 +254,7 @@ cat(paste0(rep("#", 36), collapse = ""), "\n",
 
 # Record PRISM and output dir
 cat("BASE DIR: ", base_dir, "\n", file = Model_rlogging, append = TRUE)
-cat("WORKING DIR: ", prism_dir, "\n", file = Model_rlogging, append = TRUE)
-cat(str_wrap(paste0("EXISTING OUTPUT DIR: ", output_dir, 
-    "; removing all files"), width = 80), "\n\n", sep = "", 
-    file = Model_rlogging, append = TRUE)
+cat("WORKING DIR: ", forecast_dir, "\n", file = Model_rlogging, append = TRUE)
 
 # Push out a message file with all R error messages
 msg <- file(paste0(output_dir, "/Logs_metadata/rmessages.txt"), open = "wt")
@@ -284,11 +285,15 @@ if (file.exists(species_params)) {
 }
 
 # Change year to numeric if it's a specific year
-# If using climate normals, there may be letters in folder name
+# If using climate normals, the start year is the first 4 characters after the
+# variable name in the climate data file (e.g., "PRISM_tmax_30yr6190..")
 if (!grepl("[A-z]", start_year)) {
   start_year <- as.numeric(start_year)
 } else {
-  start_year <- "30yr" # This needs to be changed depending on folder name
+  fl_nam <- list.files(forecast_dir, pattern = ".tif$")[1]
+  splits <- str_count(fl_nam, "_")
+  fl_nam_split <- str_split_fixed(fl_nam, "_", splits)
+  start_year <- fl_nam_split[which(str_detect(fl_nam_split, "yr"))]
 }
 
 # Set up start and stop day of year depending on whether it's a leap year or
@@ -547,34 +552,43 @@ cat("\nDone writing metadata file\n\n", forecast_data, " DATA PROCESSING\n",
 # Weather inputs and outputs - PRISM climate data w/subdirs 4-digit year
 # New feature - choose whether to use PRISM or NMME for weather forecasts 
 # (forecast_data = PRISM, or forecast_data = NMME)
-tminfiles <- list.files(path = prism_dir, 
-                        pattern = glob2rx(paste0("*PRISM_tmin_*", 
-                                                 start_year, "*.bil$*")), 
-                        all.files = FALSE, full.names = TRUE, recursive = TRUE)
-if (length(tminfiles) == 0) {
-  cat("Could not find tmin files - exiting program\n", 
-      file = Model_rlogging, append = TRUE) 
-  cat("Could not find tmin files - exiting program\n") 
-  q()
+# Loop through each needed variable and create a list of needed files
+vars <- c("tmin", "tmax")
+fls_list <- c("tminfiles", "tmaxfiles")
+ 
+for (i in seq_along(vars)) {
+  
+  # Create list of files
+  if (forecast_data %in% c("PRISM", "PRISM_800m")) {
+    fl_pat <- glob2rx(paste0("*PRISM_", vars[i], "*", start_year, "*.bil$*"))
+  } else {
+    fl_pat <- glob2rx(paste0("*", forecast_data, "_", vars[i], "*", start_year, "*.tif$*"))
+  } 
+  
+  fls <- list.files(
+    path = forecast_dir, 
+    pattern = fl_pat, 
+    all.files = FALSE, full.names = TRUE, recursive = TRUE, ignore.case = TRUE
+  )
+  
+  # Exit program if files are missing
+  if (length(fls) < length(sublist)) {
+    cat("Missing ", vars[i], " files for one or more days - exiting program\n")
+    q()
+  }
+  
+  # PRISM: extract highest quality files and assign object name to list
+  # Don't do this step for daily climate averages (have word "daily" in file name)
+  if (forecast_data == "PRISM" & !any(grep("daily", fls))) {
+    fls_best <- ExtractBestPRISM(fls, forecast_data, keep_leap)[start_doy:end_doy]
+  } else {
+    #fls_best <- fls[start_doy:end_doy]
+    fls_best <- fls
+  }
+  
+  assign(fls_list[i], fls_best)
+  
 }
-
-tminfiles <- ExtractBestPRISM(tminfiles, forecast_data, 
-                              keep_leap)[start_doy:end_doy]
-
-tmaxfiles <- list.files(path = prism_dir, 
-                        pattern = glob2rx(paste0("*PRISM_tmax_*",
-                                                 start_year, "*.bil$*")), 
-                        all.files = FALSE, full.names = TRUE, recursive = TRUE)
-
-if (length(tmaxfiles) == 0) {
-  cat("Could not find tmax files - exiting program\n", 
-      file = Model_rlogging, append = TRUE) 
-  cat("Could not find tmax files - exiting program\n") 
-  q()
-}
-
-tmaxfiles <- ExtractBestPRISM(tmaxfiles, forecast_data, 
-                              keep_leap) [start_doy:end_doy]
 
 ## Extract date from temperature files using regex pattern matching
 dats <- unique(regmatches(tminfiles, regexpr(pattern = "[0-9]{8}", 
@@ -607,9 +621,12 @@ if (out_option == 1) {
 today_dat <- strftime(Sys.time(), format = "%Y%m%d")
 current_year <- strftime(Sys.time(), format = "%Y")
 
-if (start_year == current_year & 
-    yday(Sys.time()) >= start_doy &
-    yday(Sys.time()) <= end_doy) {
+# If it's the current year and today falls between start_doy and end_doy, make 
+# a stage count map for today
+stageCt_today <- start_year == current_year & 
+    yday(Sys.time()) >= start_doy & yday(Sys.time()) <= end_doy
+
+if (stageCt_today) {
   dats2 <- sort(as.numeric(unique(c(dats[seq(0, length(dats), sample_freq)], 
                   today_dat, last(dats)))))
 } else {
@@ -653,7 +670,7 @@ template <- crop(raster(tminfiles[1]), REGION) # Template for cropping
 template[!is.na(template)] <- 0
 dataType(template) <- "INT2U"
 
-#### * If CONUS or EAST, split template into tiles (and run in parallel)
+#### * If CONUS/EAST/EUROPE, split template into tiles (and run in parallel)
 # Benefit of tiles is lost for smaller regions, so these are not split
 # SpaDES.tools requires the 'sf' package, which requires a newer version of GDAL
 # .inorder must be set to TRUE so that output files are in correct order!
@@ -668,10 +685,10 @@ ncores <- detectCores()
 
 # The "RegCluster" function determines an appropriate # of cores depending on 
 # the "region_param" and "ncohort" parameters, so the server doesn't become
-# overloaded
+# overloaded. Template is split into 4 tiles if CONUS/EAST/EUROPE.
 RegCluster(round(ncores/4))
 
-if (region_param %in% c("CONUS", "EAST")) {
+if (region_param %in% c("CONUS", "EAST", "N_AMERICA", "EUROPE", "CHINA")) {
   # Split template (2 pieces per side)
   tile_list <- SplitRas(template, ppside = 2, save = FALSE, plot = FALSE) 
   tile_n <- 1:length(tile_list) # How many tiles?
@@ -691,19 +708,21 @@ if (region_param %in% c("CONUS", "EAST")) {
       file = Model_rlogging, append = TRUE)
   cat("\nCropping tmax and tmin tiles for", region_param, "\n")
   
-  tmax_list <- foreach(tile = template, .packages = "raster", 
+  tmax_list <- foreach(tile = template, .packages = c("raster"),
                        .inorder = FALSE) %:% 
-    foreach(tmax = tmaxfiles, .packages = "raster", .inorder = TRUE) %dopar% { 
+    foreach(tmax = tmaxfiles, .packages = c("raster"), .inorder = TRUE) %dopar% { 
+
       m <- as.matrix(crop(raster(tmax), tile))
     }
   
-  tmin_list <- foreach(tile = template, .packages = "raster", 
+  tmin_list <- foreach(tile = template, .packages = c("raster"),
                        .inorder = FALSE) %:% 
-    foreach(tmin = tminfiles, .packages = "raster", .inorder = TRUE) %dopar% { 
+    foreach(tmin = tminfiles, .packages = c("raster"), .inorder = TRUE) %dopar% {
+
       m <- as.matrix(crop(raster(tmin), tile))
     }
   
-# If region is not CONUS or EAST, simply crop temp files by the single template
+# If region is not CONUS/EAST/EUROPE, simply crop temp files by the single template
 } else {
   cat("Cropping tmax and tmin tiles for", region_param, "\n", 
       file = Model_rlogging, append = TRUE)
@@ -741,9 +760,9 @@ if (grepl("Windows", Sys.info()[1])) {
   mc.cores <- 4 # use 4 here, because there are 4 tiles being run in parallel
 }
 
-# Split cohorts into smaller chunks for CONUS and EAST to avoid overloading 
+# Split cohorts into smaller chunks for CONUS/EAST/EUROPE to avoid overloading 
 # memory when running in parallel.
-if (region_param %in% c("CONUS", "EAST")) {
+if (region_param %in% c("CONUS", "EAST", "N_AMERICA", "EUROPE", "CHINA")) {
   cohort_chunks <- split(1:ncohort, ceiling(1:length(1:ncohort)/2)) 
 } else {
   cohort_chunks <- split(1:ncohort, ceiling(1:length(1:ncohort)/7))
@@ -764,10 +783,10 @@ tryCatch(
     
     RegCluster(round(ncores/4))
     
-    # If the region is CONUS or EAST, then both cohorts and tiles will be run in
+    # If the region is CONUS/EAST/EUROPE/CHINA, then both cohorts and tiles will be run in
     # parallel. To avoid overloading the server, mc.cores = 4 (for the 4 tiles,
     # which keeps load at appropriate level. If a smaller 
-    if (region_param %in% c("CONUS", "EAST")) {
+    if (region_param %in% c("CONUS", "EAST", "N_AMERICA", "EUROPE", "CHINA")) {
 
       # Total number of nodes is mc.cores * 2 because use mclapply twice in loop
       for (c in cohort_chunks) {
@@ -795,7 +814,7 @@ tryCatch(
       
     } else {
 
-      # If the region is not CONUS or EAST, then we don't need to run function 
+      # If the region is not CONUS/EAST/EUROPE/CHINA, then we don't need to run function 
       # for multiple tiles.
       for (c in cohort_chunks) {
         cat("Running daily loop for cohorts", as.character(c), "\n", 
@@ -841,9 +860,8 @@ tic("Data processing run time") # Start timing for data processing
 # Create a directory ("Misc_output") to put secondary outfiles
 dir.create("Misc_output")
 
-#### * If CONUS or EAST, merge and delete tiles ####
-# If CONUS or EAST, merge the tiles
-if (region_param %in% c("CONUS", "EAST")) {
+#### * If CONUS/EAST/EUROPE/CHINA, merge and delete tiles ####
+if (region_param %in% c("CONUS", "EAST", "N_AMERICA", "EUROPE", "CHINA")) {
   cat("\nMerging tiles for", region_param, "\n\n", 
       file = Model_rlogging, append = TRUE)
   cat("\nMerging tiles for", region_param, "\n")
@@ -894,9 +912,9 @@ if (region_param %in% c("CONUS", "EAST")) {
   cat("\nDone merging tiles\n")
 }
 
-# If CONUS or EAST, remove tile files, but first check that merged files 
+# If CONUS/EAST/EUROPE/CHINA, remove tile files, but first check that merged files 
 # exist for each type (e.g., Lifestage, NumGen, ...)
-if (region_param %in% c("CONUS", "EAST")) {
+if (region_param %in% c("CONUS", "EAST", "N_AMERICA", "EUROPE", "CHINA")) {
   cat("\nDeleting tiles for", region_param, "\n\n", 
       file = Model_rlogging, append = TRUE)
   cat("\nDeleting tiles for", region_param, "\n")
@@ -1112,6 +1130,15 @@ NumGen <- brick(paste0("NumGen_cohort", middle_cohort, ".tif"))
 StageCt <- overlay(Lfstg, NumGen, fun = function(x, y){ x + y })
 writeRaster(StageCt, file = "StageCount", format = "GTiff",  datatype = "FLT4S", 
             overwrite = TRUE)
+
+# Save single raster for Stage Count for "today" (today_doy) if current year
+if (stageCt_today) {
+  
+  StageCt_today <- StageCt[[grep(today_dat, dats2)]]
+  writeRaster(StageCt_today, file = paste0("StageCount_", today_dat),
+            format = "GTiff", overwrite = TRUE)
+}
+
 rm(Lfstg, NumGen, StageCt) # Free up memory
 
 # Create a data frame of life stages spelled out to be used for plotting
@@ -1133,19 +1160,34 @@ stg_vals <- stg_vals %>%
 # -1 (Excl1), and areas where the species is both moderate and severe stress 
 # with -1 and -2, respectively (Excl2)
 if (exclusions_stressunits) {
+  
   # Tack on climate stress data onto stage values data frame
   stg_vals <- rbind(data.frame(stg_name = c("excl.-moderate", "excl.-severe"), 
                     life_cycle = c(-1, -2), stg_num = c(-1, -2)), stg_vals)
   StageCt_excl1 <- brick(Rast_Subs_Excl(brick("StageCount.tif"), "Excl1")) 
   StageCt_excl2 <- brick(Rast_Subs_Excl(brick("StageCount.tif"), "Excl2"))
+
   # Save raster brick results
   writeRaster(StageCt_excl1, file = "StageCount_Excl1", format = "GTiff",  
               datatype = "FLT4S", overwrite = TRUE)
   writeRaster(StageCt_excl2, file = "StageCount_Excl2", format = "GTiff",  
               datatype = "FLT4S", overwrite = TRUE)
-  rm(StageCt_excl1, StageCt_excl2) # Free up memory
+
+  # Save single rasters for Stage Count for "today" if current year
+  if (stageCt_today) {
+
+      StageCt_excl1_today <- StageCt_excl1[[grep(today_dat, dats2)]]
+      writeRaster(StageCt_excl1_today, file = paste0("StageCount_Excl1_", today_dat), 
+                  format = "GTiff",  datatype = "FLT4S", overwrite = TRUE)
+      StageCt_excl2_today <- StageCt_excl2[[grep(today_dat, dats2)]]
+      writeRaster(StageCt_excl2_today, file = paste0("StageCount_Excl2_", today_dat),   
+                  format = "GTiff",  datatype = "FLT4S", overwrite = TRUE)
+  }
+  
 }
 
+rm(StageCt_excl1, StageCt_excl2) # Free up memory
+      
 # Make list of Stage Count raster bricks for plotting
 if (exclusions_stressunits) {
   StageCt_lst <- c("StageCount.tif", "StageCount_Excl1.tif", 
@@ -2456,4 +2498,3 @@ cat("\nRun time for entire model =", total_exectime, "min\n\n")
 # Clean up
 rm(list = ls(all.names = TRUE)) # Clear all objects including hidden objects
 gc()
-
