@@ -4,7 +4,7 @@
 # needed to run the program.
 # 
 # Log of most recent changes -----
-# 8/25/22: Changed PEM color palettes
+# 9/14/22: Changed PEM color palettes (8/25) and fixed bug w/ ordering of key
 # 7/2/22: Edit CombineMaps function to increase tolerance in merge raster function
 # 6/29/22: Added features for processing and mapping E-OBS and CDAT data
 # 3/18/22: Fixed bug in code to plot pest event maps
@@ -1716,7 +1716,8 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     # Generate a key for colors for every week of the year, allowing up to 
     # 5 weeks per month, as well as climate stress exclusion values
     cols_df <- data.frame(
-      "cols" = c(Colfunc( "#d9d2e9", "#351e75", 5), # indigo
+      "cols" = c("gray30", "gray70",
+                 Colfunc( "#d9d2e9", "#351e75", 5), # indigo
                  Colfunc( "#9fc5e8", "#0000ff", 5), # dark blue
                  Colfunc("#b3ecff", "#0092d2", 5), # sky blue
                  Colfunc("#acf9e3", "#33b3a6", 5),  # teal-cyan
@@ -1727,17 +1728,18 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
                  Colfunc("#f4cccc", "#ff0000", 5), # red
                  Colfunc("#e6b8af", "#85200c", 5), # brick
                  Colfunc("#ffb0da", "#ff00ff", 5), # magenta
-                 Colfunc("#e1bee7", "#8e24aa", 5), #purple
-                 "gray70", "gray30")) # Climate stress grays
+                 Colfunc("#e1bee7", "#8e24aa", 5) #purple
+                 )) # Climate stress grays
 
     # Data frame of weeks and months, used to join colors with data
     weeks_df <- data.frame(
       "month" = unlist(map(1:12, function(i) { rep(i, 5)} )),
       "week" = rep(1:5, 12)) %>%
-      mutate(month_week = paste(month, week, sep = "_")) %>%
+      mutate(month_week = paste0(month, "_", week)) %>%
       dplyr::select(month_week) %>%
-      add_row(month_week = c("0_1", "0_2")) # Climate stress exclusion values
-
+      add_row(month_week = c("0_2", "0_1")) %>% # Climate stress exclusion values
+      arrange(month_week)
+    
     # Attach colors and weeks data frames, join to data to be plotted, 
     # keeping only colors needed for plotting.
     col_key <- cbind(cols_df, weeks_df) %>%

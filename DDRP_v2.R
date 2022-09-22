@@ -2,6 +2,7 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
+# 9/21/22: Bug fix in Adult by Gen maps when using older raster and/or sp packages
 # 8/26/22: Output a raster for StageCount for present day, new PEM colors
 # 6/22/22: Added ability to use CDAT data for China; simplified code for 
 #  importing different types of data
@@ -157,22 +158,22 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "SUNP" # Default species to use
+  spp           <- "STB" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
   start_year    <- "2022" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 0 # Should leap day be kept?
-  region_param  <- "AL" # Region 
+  region_param  <- "CONUS" # Region 
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
-  pems          <- 1 # Turn on/off pest event maps
+  pems          <- 0 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 0 # Make maps for egg stage
   mapL          <- 0 # Make maps for larval stage
   mapP          <- 0 # Make maps for pupal stage
-  out_dir       <- "NA" # Output dir
+  out_dir       <- "STB_test" # Output dir
   out_option    <- 1 # Sampling frequency
-  ncohort       <- 1 # Number of cohorts to approximate end of OW stage
+  ncohort       <- 7 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
 }
 
@@ -2345,14 +2346,18 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
     
     for (f in 1:length(fls)) {
       brk <- brick(fls[[f]])[[grep(lyr_name, names(brick(fls[[f]])))]]
-      # Bug in "ConvDF" requires more than 1 row of data if the value == 0
-      # Not sure if same error will be thrown for -1 and -2 values so used
-      # all(freq$value <= 0) $ freq$count > 1
-      if (any(!is.na(values(brk)))) { # Don't include layers if all NA
+      # Bug in "ConvDF" requires more than 1 row of data for older versions
+      # of spatial packages (either sp, raster, or both?)
+      # Updated bug fix on 9/21/22
+      if (any(!is.na(values(brk)))) { # Don't include layers if all values are NA
         freq <- data.frame(freq(brk, useNA = "no")) # Get frequency of all vals
-        if (all(freq$value <= 0) & freq$count > 1) { 
+        #if (all(freq$value <= 0) & freq$count > 1) {
+        # If only a single value is present in the layer, check that it occurs in
+        # more than 1 cell
+        if (nrow(freq) == 1 & freq$count > 1) {
           brk_sub <- addLayer(brk_sub, brk)
-        } else if (any(freq$value > 0)) { # Don't need to worry about non-0 vals
+          # Not sure if this is needed....
+        } else if (nrow(freq) > 1 & any(freq$count > 1)) { 
           brk_sub <- addLayer(brk_sub, brk)
         }
       }
