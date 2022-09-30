@@ -4,7 +4,7 @@
 # needed to run the program.
 # 
 # Log of most recent changes -----
-# 9/14/22: Changed PEM color palettes (8/25) and fixed bug w/ ordering of key
+# 9/29/22: Changed PEM color palettes (8/25 + 9/29) & fixed bug w/ ordering of key
 # 7/2/22: Edit CombineMaps function to increase tolerance in merge raster function
 # 6/29/22: Added features for processing and mapping E-OBS and CDAT data
 # 3/18/22: Fixed bug in code to plot pest event maps
@@ -1716,7 +1716,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     # Generate a key for colors for every week of the year, allowing up to 
     # 5 weeks per month, as well as climate stress exclusion values
     cols_df <- data.frame(
-      "cols" = c("gray30", "gray70",
+      "cols" = c("gray30", "gray70", 
                  Colfunc( "#d9d2e9", "#351e75", 5), # indigo
                  Colfunc( "#9fc5e8", "#0000ff", 5), # dark blue
                  Colfunc("#b3ecff", "#0092d2", 5), # sky blue
@@ -1733,13 +1733,14 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
 
     # Data frame of weeks and months, used to join colors with data
     weeks_df <- data.frame(
-      "month" = unlist(map(1:12, function(i) { rep(i, 5)} )),
+      "month" = unlist(purrr::map(1:12, function(i) { rep(i, 5)} )),
       "week" = rep(1:5, 12)) %>%
       mutate(month_week = paste0(month, "_", week)) %>%
       dplyr::select(month_week) %>%
-      add_row(month_week = c("0_2", "0_1")) %>% # Climate stress exclusion values
-      arrange(month_week)
-    
+      arrange(month_week) %>%
+      # Climate stress exclusion values at top
+      add_row(month_week = c("0_2", "0_1"), .before = 1) 
+  
     # Attach colors and weeks data frames, join to data to be plotted, 
     # keeping only colors needed for plotting.
     col_key <- cbind(cols_df, weeks_df) %>%
