@@ -1741,7 +1741,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       arrange(month_week)# %>%
       # Climate stress exclusion values at top
       #add_row(month_week = c("0_2", "0_1"), .before = 1) 
-    weeks_df <- rbind(data.frame("month_week" = c("0_1", "0_2")), weeks_df)
+    weeks_df <- rbind(data.frame("month_week" = c("0_2", "0_1")), weeks_df)
     
     # Attach colors and weeks data frames, join to data to be plotted, 
     # keeping only colors needed for plotting.
