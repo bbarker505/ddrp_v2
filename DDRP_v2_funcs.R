@@ -1733,14 +1733,16 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
 
     # Data frame of weeks and months, used to join colors with data
     weeks_df <- data.frame(
-      "month" = unlist(purrr::map(1:12, function(i) { rep(i, 5)} )),
+      #"month" = unlist(purrr::map(1:12, function(i) { rep(i, 5)} )),
+      "month" = rep(1:12, times = 1, each = 5),
       "week" = rep(1:5, 12)) %>%
       mutate(month_week = paste0(month, "_", week)) %>%
       dplyr::select(month_week) %>%
-      arrange(month_week) %>%
+      arrange(month_week)# %>%
       # Climate stress exclusion values at top
-      add_row(month_week = c("0_2", "0_1"), .before = 1) 
-  
+      #add_row(month_week = c("0_2", "0_1"), .before = 1) 
+    weeks_df <- rbind(data.frame("month_week" = c("0_1", "0_2")), weeks_df)
+    
     # Attach colors and weeks data frames, join to data to be plotted, 
     # keeping only colors needed for plotting.
     col_key <- cbind(cols_df, weeks_df) %>%
