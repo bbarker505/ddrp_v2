@@ -1,53 +1,50 @@
 # Params and values for 
 # EAB, Emerald Ash Borer, Agrilus planipennis - in Degs Celsius (C)
-# model documentation at: http://uspest.org/wea/EAB_model_analysis.pdf
-# Researcher: Brittany S. Barker 
-# Last updated in June 2019 for DDRP v2 (cohorts)
+# Researcher: Brittany S. Barker and Len Coop
+# Last updated in May 2023 for DDRP v2 (cohorts)
   fullname   <- "Emerald ash borer"
   pestof     <- "ash trees"
   stgorder   <- c("OL","P","A","E","L") #  stgorder changed to 1, 2, 3, 4, 5 
   owstage    <- "OL"  # OL means ow as larvae
   obligate_diapause <- 1  # emerald ash borer has an obligate winter diapause, so only 1 gen per year
-  eggLDT     <- 13.9 
-  eggUDT     <- 30      
-  larvaeLDT  <- 9.8
-  larvaeUDT  <- 30  
-  pupaeLDT   <- 11.9 
-  pupaeUDT   <- 30
-  adultLDT   <- 10.7   
-  adultUDT   <- 30
-  eggDD      <- 150
-  larvaeDD   <- 668
-  pupDD      <- 116
-  adultDD    <- 278
-  # full generation time: 
-  OWlarvaeDD <- 100 # OW stage requires at least 100 DD to begin pupation 
+  eggLDT     <- 12.2
+  eggUDT     <- 36
+  larvaeLDT  <- 12.2
+  larvaeUDT  <- 36
+  pupaeLDT   <- 12.2
+  pupaeUDT   <- 36
+  adultLDT   <- 12.2
+  adultUDT   <- 36
+  eggDD      <- 172
+  larvaeDD   <- 700 #instars 1 to 4 (J-larval formation)
+  pupDD      <- 135
+  adultDD    <- 145 # 50% of OV (289 DDC)
+# OWlarvaeDD param used only if ncohort = 1	
+  OWlarvaeDD <- 100 # OW stage requires at least 100 DD to begin pupation
   calctype   <- "triangle"  # triangle similar to sine curve
-  # Pest Event Maps (PEMs) must be turned on as a runtime param for these to get used:
+# Pest Event Maps (PEMs) must be turned on as a runtime param for these to get used:
   PEMnumgens       <- 1     # create PEMS for up to this many generations (max is 4)
-  eggEventDD       <- 150    # PEMs for egg hatch is at end of stage
+  eggEventDD       <- 172   # PEMs for egg hatch is at end of stage
   eggEventLabel    <- "egg hatch" # Label for PEM egg stage
-  larvaeEventDD    <- 335   # PEMS for mid-larval stage; J-larvae over-winter 
-  larvaeEventLabel <- "developing J-larvae" # Label for PEM larvae stage 
-  pupaeEventDD     <- 116  # PEMs for end of pupal stage denotes adult emergence
+  larvaeEventDD    <- 700 # PEMS for beginning of J-larvae development
+  larvaeEventLabel <- "J-larval development" # Label for PEM larvae stage 
+  pupaeEventDD     <- 135  # PEMs for end of pupal stage denotes adult emergence
   pupaeEventLabel  <- "adult emergence"  # Label for PEM pupal stage
-# pupaeEventDD     <-  63   # PEMs for mid pupal stage
-  #pupaeEventLabel <- "mid-pupal devel- time to place traps" # Label for PEM pupal stage
-  adultEventDD     <- 226   # PEMs for adult stage (1st oviposition)
+  adultEventDD     <- 72   # PEMs for adult stage (1st oviposition)
   adultEventLabel  <- "egg laying" # Label for PEM adult stage
   OWEventP         <- 1  # PEMs for OWlarvae is 100% into stage (end of stage)
   OWEventLabel     <- "pupal development" # Label for PEM OWlarvae stage  
 # Exclusion Maps must be turned on as a runtime param for these to get used:
-  coldstress_threshold  <- -34
-  coldstress_units_max1 <- 10 # use for cold stress units: ColdDD limit; so "most" all die once reached
-  coldstress_units_max2 <- 25 # use for cold stress units: ColdDD limit; so all die once reached
-  heatstress_threshold   <- 33
-  heatstress_units_max1  <- 110 # use for heat stress units: HeatDD limit; so "most" all die once reached
-  heatstress_units_max2  <- 210 # use for heat stress units: HeatDD limit; so all die once reached  
+  coldstress_threshold  <- -31
+  coldstress_units_max1 <- 80 # use for cold stress units: ColdDD limit; so "most" all die once reached
+  coldstress_units_max2 <- 160 # use for cold stress units: ColdDD limit; so all die once reached
+  heatstress_threshold   <- 38
+  heatstress_units_max1  <- 75 # use for heat stress units: HeatDD limit; so "most" all die once reached
+  heatstress_units_max2  <- 150 # use for heat stress units: HeatDD limit; so all die once reached  
 # OW stage emergence parameters (DDRP v2 only)
-  distro_mean <- 125
-  distro_var <- 300 
-  xdist1 <- 90
-  xdist2 <- 170
-  distro_shape <- "normal" 
+  distro_mean <- 200
+  distro_var <- 15000
+  xdist1 <- 60
+  xdist2 <- 350
+  distro_shape <- "lognormal"
 # END
