@@ -2,6 +2,14 @@
 #.libPaths("/usr/lib64/R/library/")
 # Log of recent edits
 # 
+# 11/29/23: Fixed bug in PEM code block that sometimes result in errors when
+# cohorts were missing due the event not occuring in that cohort ("calc" function)
+# 10/3/23: Fixed bug that prevented climate data from directories with non-numeric
+# characters from being imported.
+# 11/2/22: Add ability to compute a lognormal distribution and skewed normal 
+# distribution of emergence times; changed caculation of average date of pest 
+# event to a weighted average to better account for cohort distributions; 
+# edited the "cohort_chunks" list object to avoid errors when applying >7 cohorts.
 # 9/21/22: Bug fix in Adult by Gen maps when using older raster and/or sp packages
 # 8/26/22: Output a raster for StageCount for present day, new PEM colors
 # 6/22/22: Added ability to use CDAT data for China; simplified code for 
@@ -158,20 +166,20 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "STB" # Default species to use
+  spp           <- "LBAM" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
-  start_year    <- "2022" # Year to use
+  start_year    <- "2023" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
-  keep_leap     <- 0 # Should leap day be kept?
-  region_param  <- "CONUS" # Region 
+  keep_leap     <- 1 # Should leap day be kept?
+  region_param  <- "OR" # Region 
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
-  pems          <- 0 # Turn on/off pest event maps
+  pems          <- 1 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
-  mapE          <- 0 # Make maps for egg stage
-  mapL          <- 0 # Make maps for larval stage
-  mapP          <- 0 # Make maps for pupal stage
-  out_dir       <- "STB_test" # Output dir
+  mapE          <- 1 # Make maps for egg stage
+  mapL          <- 1 # Make maps for larval stage
+  mapP          <- 1 # Make maps for pupal stage
+  out_dir       <- "LBAM_test" # Output dir
   out_option    <- 1 # Sampling frequency
   ncohort       <- 7 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
@@ -291,8 +299,8 @@ if (file.exists(species_params)) {
 if (!grepl("[A-z]", start_year)) {
   start_year <- as.numeric(start_year)
 } else {
-  fl_nam <- list.files(forecast_dir, pattern = ".tif$")[1]
-  splits <- str_count(fl_nam, "_")
+  fl_nam <- list.files(forecast_dir, pattern = ".tif$|.bil$")[1]
+  splits <- str_count(fl_nam, "_") + 1
   fl_nam_split <- str_split_fixed(fl_nam, "_", splits)
   start_year <- fl_nam_split[which(str_detect(fl_nam_split, "yr"))]
 }
@@ -418,13 +426,27 @@ stage_dd <- as.numeric(do.call(cbind, stage_dd_list))
 # May consider changing length.out to something else in future versions...
 # Also consider making the percent (in cohort_distro) an input parameter
 xdist <- seq(xdist1, xdist2, length.out = 1000)
-ydist <- dnorm(xdist, mean = distro_mean, sd = sqrt(distro_var))
+  
+if (distro_shape == "normal") {
+  ydist <- dnorm(xdist, mean = distro_mean, sd = sqrt(distro_var))
+} else if (distro_shape == "lognormal") {
+  # Convert normal parameters to lognormal parameters
+  lognorms <- Normal_to_lognormal(normmean = distro_mean, normsd = sqrt(distro_var))
+  # x-values for log normal probability density
+  ydist <- dlnorm(xdist, meanlog = lognorms[[1]], sdlog = lognorms[[2]])
+} else if (distro_shape == "normal_skewed") {
+  ydist <- dsnorm(xdist, mean = distro_mean, sd = sqrt(distro_var), xi = distro_xi) 
+}
 
+# Create the cohort distribution
+# "relpopsize" values are used to estimate the relative size of the population 
+# (i.e. proportion) represented by each cohort, which initializes the population 
+# distribution that is maintained during subsequent stages and generations
 inputdist <- data.frame(x = xdist, y = ydist) %>% 
   arrange(x) %>% 
   mutate(CDF = cumsum(y/sum(y)))
 cohort_distro <- CohortDistrib(dist = inputdist, numstage = ncohort, perc = .99)
-relpopsize <- cohort_distro$weights
+relpopsize <- round(cohort_distro$wts, 3)
 
 # Parameters of required degree-days
 # Replace OW gen with emergence distro values
@@ -518,20 +540,25 @@ cat("\n\n### Model Input Parameters ###\n Start Year:", start_year,
     "\n Output_Dir:", out_dir, 
     "\n Output option:", out_option, 
     "\n No. of cohorts:", ncohort, 
+    "\n Plot odd gens only:", odd_gen_map, 
     "\n Mean of end of OW stage (DDs):", distro_mean, 
     "\n Low bound of end of OW stage (DDs), xdist:", xdist1, 
     "\n High bound of end of OW stage (DDs), ydist:", xdist2, 
     "\n Variance in end of OW stage (DDs):", distro_var,
     "\n Shape of distribution of end of OW stage (DDs):", distro_shape, 
-    "\n Plot odd gens only:", odd_gen_map, 
     file = metadata, append = TRUE)
 
+if (distro_shape == "normal_skewed") {
+  cat("\n Skewness of distribution of end of OW stage (DDs):", distro_xi, 
+    file = metadata, append = TRUE)
+}
+
 # Make a table of stage DDs for each cohort and print to metadata
-stage_dd.print <- as.data.frame(stage_dd)
-stage_dd.print[1] <- round(stage_dd.print[1], 0)
-colnames(stage_dd.print) <- stgorder
+stage_dd.print <- as.data.frame(round(stage_dd, 0)) %>%
+  rename_at(vars(names(.)), ~stgorder) 
 stage_dd.print <- cbind("cohort" = as.integer(rownames(stage_dd.print)), 
-                        data.frame(stage_dd.print, row.names = NULL))
+                        data.frame(stage_dd.print, row.names = NULL),
+                        "relpopsize" = relpopsize)
 
 cat("\n\n### Durations (in degree-days) of stages in each of", 
     ncohort, "cohorts ###\n", file = metadata, append = TRUE) 
@@ -766,7 +793,9 @@ if (grepl("Windows", Sys.info()[1])) {
 if (region_param %in% c("CONUS", "EAST", "N_AMERICA", "EUROPE", "CHINA")) {
   cohort_chunks <- split(1:ncohort, ceiling(1:length(1:ncohort)/2)) 
 } else {
-  cohort_chunks <- split(1:ncohort, ceiling(1:length(1:ncohort)/7))
+  # TO DO: For some reason errors are return when splitting the cohort_chunks
+  # list object into multiple pieces. Thus, it must be a list of 1, until can fix.
+  cohort_chunks <- split(1:ncohort, ceiling(1:length(1:ncohort)/ncohort))
 }
 
 tic("Daily loop run time") # Start timing the daily loop run-time
@@ -778,7 +807,6 @@ cat("\nSampling every", sample_freq, "days between", first(dats), "and",
     last(dats), "\n") 
 
 # Run it! If there is an error the program will stop
-
 tryCatch(
   {
     
@@ -1186,13 +1214,13 @@ if (exclusions_stressunits) {
   }
   
 }
-
-rm(StageCt_excl1, StageCt_excl2) # Free up memory
       
 # Make list of Stage Count raster bricks for plotting
 if (exclusions_stressunits) {
   StageCt_lst <- c("StageCount.tif", "StageCount_Excl1.tif", 
                    "StageCount_Excl2.tif")
+  rm(StageCt_excl1, StageCt_excl2) # Free up memory
+  
 } else {
   StageCt_lst <- c("StageCount.tif")
 }
@@ -1368,7 +1396,7 @@ if (pems) {
   
   foreach(type = PEM_types, .packages = pkgs, .inorder = FALSE) %dopar% {
   #for (type in PEM_types) {
-   #print(type)
+   print(type)
     # Find files by type (e.g., "PEMe1" for each cohort) 
     files_by_type <- PEM_files[grep(pattern = type, x = PEM_files, 
                                     fixed = TRUE)] 
@@ -1408,11 +1436,19 @@ if (pems) {
             append = TRUE)
       }
 
-      # Calc. avg. date of pest event across cohorts
+      # Calc. avg. doy of pest event across cohorts
       # Then save raster brick, and create and save summary maps
+      # A weighted average is used to account for the relative sizes of the
+      # cohorts (i.e. weights in the "relpopsize" vector).
+      # TO DO: how to deal with missing cohorts because event didn't occur?
+      # For now, simply removed cohort from weight vector so this function
+      # doesn't crash.
       avg_PEM <- calc(PEM_brk, fun = function(x, na.rm= TRUE) { 
-        mean(x, na.rm = TRUE) 
-        }) # average in day of event among cohorts
+        relpopsize <- relpopsize[1:nlayers(PEM_brk)]
+          raster::weighted.mean(x, relpopsize, na.rm = TRUE) 
+        }) 
+      
+      # Name layers, save raster, and plot
       names(avg_PEM) <- "Avg" # name layer for use below
       SaveRaster2(avg_PEM, paste("Avg", type, last(dats2), sep = "_"), 
                   "INT2U", paste("- Avg.", eventLabel))
@@ -1491,6 +1527,8 @@ if (pems & exclusions_stressunits) {
       "WEIGHTED RASTER AND SUMMARY MAP OUTPUTS: LIFESTAGE", "\nStages: ",
       paste(stgorder, collapse = ", "), "\n", sep = "")
 }
+
+#q()
 
 # Make file lists for weighting the rasters by relative population size
 Lfstg_fls <- list.files(pattern = glob2rx("*Lifestage_*.tif$"))
@@ -1944,8 +1982,10 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
           mutate(gen = str_split_fixed(key, pattern = "_", 2)[,2]) %>% 
           mutate(gen = sub('\\..*', '', gen)) %>%
           filter(value > 0) %>% # Remove 0 values (gens not present)
-          distinct(gen) %>% arrange %>% # Returns the gen(s) present on date
-          pull() %>% last()
+          distinct(gen) %>% 
+          arrange %>% # Returns the gen(s) present on date
+          pull() %>% 
+          last()
         maxgens <- as.numeric(maxgens) # This will be incorporated below
       }
         

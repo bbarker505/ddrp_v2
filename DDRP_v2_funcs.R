@@ -4,6 +4,15 @@
 # needed to run the program.
 # 
 # Log of most recent changes -----
+# 10/2/23: Clarified that "obligate_diapause" parameter cannot be in a parameter
+# file unless the species actually does have obligate diapause. This should maybe
+# be changed (i.e., have it all parameter files) but would require changing all 
+# species parameter files created to date (except for EAB)
+# 1/24/23: Modified "Base_map" function so that maps for North America included
+# both state and world boundaries in image file (PNG) outputs
+# 11/10/22: Add formula to compute a lognormal distribution and skewed normal
+#   distribution of emergence times. Also fixed mistake in PEM colors due to 
+#   incorrect ordering of factors.
 # 9/29/22: Changed PEM color palettes (8/25 + 9/29) & fixed bug w/ ordering of key
 # 7/2/22: Edit CombineMaps function to increase tolerance in merge raster function
 # 6/29/22: Added features for processing and mapping E-OBS and CDAT data
@@ -129,13 +138,19 @@ Assign_extent <- function(region_param = paste0(region_param)) {
 Base_map <- function(df) {
   
   # Data to use for base map (i.e. target region - will usually be US states)
-  if (region_param %in% c("N_AMERICA", "EUROPE", "CHINA")) {
+  if (region_param %in% c("EUROPE", "CHINA")) {
     base_map <- map_data("world") 
+  } else if (region_param == "N_AMERICA") {
+    # Combine world and state data (add 1627 to group numbers for state data
+    # [max group # in world data] so that there's no overlapping group numbers 
+    # between data frames)
+    states_df <- map_data("state") %>% mutate(group = group + 1627)
+    base_map <- bind_rows(map_data("world"), states_df)
   } else {
     base_map <- map_data("state")
   }
   
-  # Base map plot
+# Base map plot
   p <- ggplot(base_map, aes(x = long, y = lat)) + 
     geom_raster(data = df, aes(x = x, y = y, fill = value)) + 
     geom_path(aes(group = group), color = "black", lwd = 0.4) +
@@ -147,20 +162,24 @@ Base_map <- function(df) {
 #### (3). CohortDistrib: cohort emergence distribution ####
 # This is an approximation from GAM predictions. 
 CohortDistrib <- function(dist, numstage, perc) {
-    ReturnClosestValue <- function(dist, xval) {
+  
+  ReturnClosestValue <- function(dist, xval) {
     out <- dist$CDF[which(dist$x > xval)[1]]
   }
   
+  # Vector with emergence times (in degree-days) for each cohort 
   low <- (1 - perc)/2
   high <- 1 - (1 - perc) / 2
   low <- dist$x[which(dist$CDF > low)[1]]
   high <- dist$x[which(dist$CDF > high)[1]]
-  
   bounds <- seq(low, high, length.out = numstage + 1)
   means <- (bounds[1:numstage] + bounds[2:(numstage + 1)]) / 2
-  weights <- diff(sapply(X = bounds, FUN = ReturnClosestValue, dist = dist), 
-                  lag = 1)
-  return(data.frame(means, weights))
+  
+  # Vector of weights: the proportion of the population made up by each cohort 
+  wts <- diff(sapply(X = bounds, FUN = ReturnClosestValue, dist = dist), lag = 1)
+  
+  # Return results as a data frame
+  return(data.frame(means, wts))
 }
 
 #### (4). CombineMaps: merge raster tiles ####
@@ -608,6 +627,8 @@ DailyLoop <- function(cohort, tile_num, template) {
     # Calculate Lifestage progression: Is accumulation > Lifestage requirement 
     # (0 = FALSE, 1 = TRUE)? If species has obligate diapause, then don't 
     # allow it to progress past the 1st gen overwintering stage.
+    # This configuration assumes that a parameter file has an "obligate_diapause"
+    # only if that species actually does have obligate diapause. 
     if (exists("obligate_diapause")) {
       if (obligate_diapause == 1) {
         if (owstage == "OL") {
@@ -874,7 +895,54 @@ TriDD <- function(tmax, tmin, LDT, UDT) {
                                 6 * (tmax + tmin - 2 * LDT)/12, 0))))))
 } 
 
-#### (12). ExtractBestPRISM: get best PRISM/NMME file from directory ####
+#### (12). Density for the skewed normal distribution ####
+# A function implemented by Diethelm Wuertz 
+# Description: Compute the density function of the skew normal distribution
+# Arguments:
+#   x - a numeric vector of quantiles.
+#   mean, sd, xi - location parameter, scale parameter, and skewness parameter.
+# Source code from "fGarch" R package: https://rdrr.io/cran/fGarch/src/R/dist-snorm.R
+dsnorm <- function(x, mean, sd, xi, log = FALSE) {   
+
+    
+    # Params:
+    if (length(mean) == 3) {
+        xi = mean[3]
+        sd = mean[2]
+        mean = mean[1]
+    } 
+    
+    # Function to shift and scale the distribution
+    .dsnorm <-  function(x, xi) {   
+        # A function implemented by Diethelm Wuertz 
+        # Description:
+        #   Compute the density function of the "normalized" skew 
+        #   normal distribution
+
+        # Standardize:
+        m1 = 2/sqrt(2*pi)
+        mu = m1 * (xi - 1/xi)
+        sigma = sqrt((1-m1^2)*(xi^2+1/xi^2) + 2*m1^2 - 1)
+        z = x*sigma + mu  
+        # Compute:
+        Xi = xi^sign(z)
+        g = 2 / (xi + 1/xi) 
+        Density = g * dnorm(x = z/Xi)  
+        # Return Value:
+        Density * sigma 
+    }
+
+    # Shift and Scale:
+    result = .dsnorm(x = (x-mean)/sd, xi = xi) / sd
+    
+    # Log:
+    if(log) result = log(result)
+    
+    # Return Value:
+    result
+}
+
+#### (13). ExtractBestPRISM: get best PRISM/NMME file from directory ####
 # Take .bil files from PRISM or NMME (= forecast_data) yearly directories 
 # (= files). The function returns the best data for each day. If data are 
 # from a leap year, then leap day data may be removed or kept (= keep_leap).
@@ -936,7 +1004,7 @@ ExtractBestPRISM <- function(files, forecast_data, keep_leap) {
   return(files)
 }
 
-#### (13). Mat_to_rast: matrix to raster conversion ####
+#### (14). Mat_to_rast: matrix to raster conversion ####
 # Converts a matrix (= m) to a raster, which involves specifying the extent 
 # (= ext) from the template (= template), setting the coordinate system, and 
 # assigning it a spatial resolution (from the template)
@@ -949,7 +1017,19 @@ Mat_to_rast <- function(m, ext, template) {
   return(rast)
 }
 
-#### (14). PlotMap: summary map plotting - main ####
+#### (15). Normal_to_lognormal ####
+# Given parameters that describe a normal distribution, convert them to parameters
+# for a lognormal distribution. For use in generating cohort emergence distribution. 
+# Output is a list with 2 elements: the mean and and stdev for a lognormal distro
+# Source code: https://rdrr.io/github/davidski/collector/man/normal_to_lognormal.html
+Normal_to_lognormal <- function(normmean, normsd) {
+  phi <- sqrt(normsd ^ 2 + normmean ^ 2) # probability density function
+  lognorm_meanlog <- log(normmean ^ 2 / phi) # mean
+  lognorm_sdlog <- sqrt(log(phi ^ 2 / normmean ^ 2)) # stdev
+  list(meanlog = lognorm_meanlog, sdlog = lognorm_sdlog)
+}
+
+#### (16). PlotMap: summary map plotting - main ####
 # A VERY large function that generates summary plots for all products generated
 # in the DDRP model run
 # r = raster input, d = date, lgd = legend title, outfl = outfile name
@@ -1716,10 +1796,8 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     # Generate a key for colors for every week of the year, allowing up to 
     # 5 weeks per month, as well as climate stress exclusion values
     cols_df <- data.frame(
-      "cols" = c("gray30", "gray70", 
-                 Colfunc( "#d9d2e9", "#351e75", 5), # indigo
-                 Colfunc( "#9fc5e8", "#0000ff", 5), # dark blue
-                 Colfunc("#b3ecff", "#0092d2", 5), # sky blue
+      "cols" = c("gray30", "gray70",  # Climate stress grays
+                  Colfunc( "#d9d2e9", "#351e75", 5), # indigo
                  Colfunc("#acf9e3", "#33b3a6", 5),  # teal-cyan
                  Colfunc( "#b7ffbf","#145214", 5), # green
                  Colfunc( "#cdff03","#2ec20a", 5), # yellow-green
@@ -1728,20 +1806,23 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
                  Colfunc("#f4cccc", "#ff0000", 5), # red
                  Colfunc("#e6b8af", "#85200c", 5), # brick
                  Colfunc("#ffb0da", "#ff00ff", 5), # magenta
-                 Colfunc("#e1bee7", "#8e24aa", 5) #purple
-                 )) # Climate stress grays
+                 Colfunc("#e1bee7", "#8e24aa", 5), # purple
+                 Colfunc("#b3ecff", "#0092d2", 5), # sky blue
+                 Colfunc( "#9fc5e8", "#0000ff", 5) # dark blue
+                 ))
 
     # Data frame of weeks and months, used to join colors with data
     weeks_df <- data.frame(
       #"month" = unlist(purrr::map(1:12, function(i) { rep(i, 5)} )),
       "month" = rep(1:12, times = 1, each = 5),
       "week" = rep(1:5, 12)) %>%
-      mutate(month_week = paste0(month, "_", week)) %>%
+      mutate(month_week = paste0(month, "_", week))
+    weeks_df$month_week <- factor(weeks_df$month_week,
+                    levels = unique(weeks_df$month_week[order(weeks_df$month)])) 
+    weeks_df <- weeks_df %>%
       dplyr::select(month_week) %>%
-      arrange(month_week)# %>%
-      # Climate stress exclusion values at top
-      #add_row(month_week = c("0_2", "0_1"), .before = 1) 
-    weeks_df <- rbind(data.frame("month_week" = c("0_2", "0_1")), weeks_df)
+      arrange(month_week) %>%
+      rbind(data.frame("month_week" = c("0_2", "0_1")), .)
     
     # Attach colors and weeks data frames, join to data to be plotted, 
     # keeping only colors needed for plotting.
@@ -1789,7 +1870,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
     } )
 }
 
-#### (15). PlotMap_stress: summary map plotting - stress units ####
+#### (17). PlotMap_stress: summary map plotting - stress units ####
 # Create summary maps (PNG) of heat stress and cold stress units, 
 # with max1 (Stress limit 1) and max2 (Stress limit 2) shown as "countour" lines
 # r = raster input; d = date; max1 = stress limit 1; max2 = stress limit 2;
@@ -1911,7 +1992,7 @@ PlotMap_stress <- function(r, d, max1, max2, titl, lgd, outfl) {
     } )
 }
 
-#### (16). Rast_Subs_Excl: lifestage raster weighting + clim. stress excl. ####
+#### (18). Rast_Subs_Excl: lifestage raster weighting + clim. stress excl. ####
 # Substitutes weighted lifestage raster values with severe (-2) 
 # and moderate (-1) climate stress exclusions (Excl2) in areas under climate 
 # stress (i.e., where Lifestage overlaps with Excl2)
@@ -1953,7 +2034,7 @@ Rast_Subs_Excl <- function(brk, type) {
   
 }
 
-#### (17). RegCluster: register cluster for parallel computing ####
+#### (19). RegCluster: register cluster for parallel computing ####
 # Specifies the number of clusters to use for parallel computation. The 
 # function will be different depending on the OS.
 RegCluster <- function(value) {
@@ -1980,7 +2061,7 @@ RegCluster <- function(value) {
   return(cl)
 }
 
-#### (18). SaveRaster: save rasters ####
+#### (20). SaveRaster: save rasters ####
 # Simply the "writeRaster" function from raster library but prints progress 
 # in daily loop log file for a given cohort, if desired
 # r = raster, tile_num = tile number (only relevant to CONUS and EAST),
@@ -2016,7 +2097,7 @@ SaveRaster2 <- function(r, outnam, datatype, log_capt) {
       sep = "", file = Model_rlogging, append = TRUE) 
 }
 
-#### (19). Stress_Val_Conv #### 
+#### (21). Stress_Val_Conv #### 
 # Deal with 0 vs non-0 values when plotting cold and heat stress unit rasters
 # Only create bins (0-10, etc...) if there are non-zero values in the data 
 Stress_Val_Conv <- function(x) {
@@ -2034,7 +2115,7 @@ Stress_Val_Conv <- function(x) {
   return(x2)
 }
 
-#### (20). SplitRas: split raster into tiles ####
+#### (22). SplitRas: split raster into tiles ####
 # The function spatially aggregates the original raster
 # from https://stackoverflow.com/questions/29784829/
 # r-raster-package-split-image-into-multiples
@@ -2073,7 +2154,7 @@ SplitRas <- function(raster, ppside, save, plot) {
   return(r_list)
 }
 
-#### (21). Weight_rasts: weight cohort rasters ####
+#### (23). Weight_rasts: weight cohort rasters ####
 # Two input lists are required: 1) either "Lifestage" or "NumGen" raster bricks
 # for all cohorts, and 2) a vector of the relative population size comprised
 # by each cohort. The function weights the cohort bricks according the size. 
