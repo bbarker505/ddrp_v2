@@ -47,6 +47,9 @@
 # 1/3/20: fixed bug that was deleting output raster files
 # 12/16/19: renamed file names and uploaded to GitHub
 # 11/26/19: fixed bug w/ loading 30 yr climate normals
+# 12/21/24: fixed errors resulting from updates to R packages - raster package
+# started reading in names of layers differently with updates (NumGen). 
+# Raster and rgdal are no longer being maintained. DDRP v. 3 should be used.
 
 # DDRP v2
 options(echo = FALSE)
@@ -166,22 +169,22 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "LBAM" # Default species to use
+  spp           <- "ALB" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
-  start_year    <- "2023" # Year to use
+  start_year    <- "2024" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap day be kept?
-  region_param  <- "OR" # Region 
+  region_param  <- "CONUS" # Region 
   exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
   pems          <- 1 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 1 # Make maps for egg stage
   mapL          <- 1 # Make maps for larval stage
   mapP          <- 1 # Make maps for pupal stage
-  out_dir       <- "LBAM_test" # Output dir
+  out_dir       <- "ALB_2024" # Output dir
   out_option    <- 1 # Sampling frequency
-  ncohort       <- 7 # Number of cohorts to approximate end of OW stage
+  ncohort       <- 1 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
 }
 
@@ -213,8 +216,8 @@ cat("\nWORKING DIR: ", forecast_dir, "\n")
 # MUST remove .tif files or script will crash during processing because it will 
 # try to analyze previously processed results. 
 
-#output_dir <- paste0("/home/httpd/html/CAPS/", spp, "_cohorts")
 output_dir <- paste0("/usr/local/dds/DDRP_B1/DDRP_results/", out_dir)
+#output_dir <- paste0("/home/httpd/html/CAPS/", spp, "_cohorts")
 
 # If the directory already exists, then a backup directory will be created that
 # contains the old run files. Old backup directories will be removed if present.
@@ -1528,8 +1531,6 @@ if (pems & exclusions_stressunits) {
       paste(stgorder, collapse = ", "), "\n", sep = "")
 }
 
-#q()
-
 # Make file lists for weighting the rasters by relative population size
 Lfstg_fls <- list.files(pattern = glob2rx("*Lifestage_*.tif$"))
 
@@ -1822,7 +1823,7 @@ foreach(i = 1:length(gen_fls_lst), .packages = pkgs,
   NumGen_wtd <- Weight_rasts(gen_cohort_fls, "NumGen")
   SaveRaster2(NumGen_wtd, paste("Misc_output/Gen", gen, sep = "_"), "INT2U", 
                paste("- Gen.", gen, "for all", num_dats, "dates"))
-  #cat("Finished NumGen_wtd", gen, "\n")
+  cat("Finished NumGen_wtd", gen, "\n")
   
   # As for the Lifestage results, it is more memory efficient to overlay the
   # All Stress Exclusion raster with the weighted NumGen brick than to weight
@@ -1835,8 +1836,7 @@ foreach(i = 1:length(gen_fls_lst), .packages = pkgs,
                                "with severe climate stress excl. for all",
                                num_dats, "dates"), width = 80))
     rm(NumGen_wtd_excl1) # Free memory
-       
-    #cat("Finished NumGen_wtd_excl1 - gen", gen, "\n")
+    cat("Finished NumGen_wtd_excl1 - gen", gen, "\n")
        
     NumGen_wtd_excl2 <- do.call(brick, Rast_Subs_Excl(NumGen_wtd, "Excl2"))
     rm(NumGen_wtd) # Free up memory
@@ -1855,7 +1855,7 @@ stopCluster(cl)
 rm(cl)
 
 # Delete cohort raster bricks split by generation - no longer needed
-unlink(list.files(pattern = glob2rx(paste0("*Gen_*cohort*"))))
+#unlink(list.files(pattern = glob2rx(paste0("*Gen_*cohort*"))))
 
 ### * Create summary maps of NumGen results, weighted across cohorts
 
@@ -1910,22 +1910,27 @@ fls_to_stack[] <- lapply(fls_to_stack, function(x) paste0("Misc_output/", x))
 
 # For each type (NumGen, NumGenExcl1, NumGenExcl2), stack all 
 # generations together and write the results to file
+# 12/21/24: had to rename grid files - updates to R pkgs messed up layer naming
 if (exclusions_stressunits) {
   RegCluster(round(ncores/10))
-
+  
+  # NumGenExcl1 and NumGenExcl2
   foreach(i = 1:length(fls_to_stack), .packages = pkgs,
           .inorder = TRUE) %dopar% {
     fl_type <- names(fls_to_stack[i])
-    writeRaster(stack(unlist(fls_to_stack[i], use.names = FALSE)),
-              filename = paste0(fl_type, "_all_merged.grd"))
+    grd <- stack(unname(unlist(fls_to_stack[i])))
+    names(grd) <- sub("[.]", "_", names(grd))
+    writeRaster(grd, filename = paste0(fl_type, "_all_merged.grd"))
   }
 
   stopCluster(cl)
   rm(cl)
 
 } else {
-  writeRaster(stack(unlist(fls_to_stack, use.names = FALSE)),
-              filename = "NumGen_all_merged.grd")
+  # NumGen
+  grd <- stack(unname(unlist(fls_to_stack[i])))
+  names(grd) <- sub("[.]", "_", names(grd))
+  writeRaster(grd, filename = "NumGen_all_merged.grd")
 }
 
 # Summary maps will be produced for each generation (saved from previous step), 
@@ -1949,6 +1954,8 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
     
     # Get the brick for the file type
     brk_fl <- NumGen_mrgd_fls[[i]]
+    
+    # Get type (Gen, ...) which have characters only
     fl_type <- names(brick(NumGen_mrgd_fls[[i]])[[1]])
     fl_type <- str_split_fixed(fl_type, pattern = "_", 2)[,1]
     
@@ -1964,7 +1971,7 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
       #print(dat)
       # Which layer # in the stack corresponds to the date? Then subset brick.
       lyr_no <- which(dats2 == dat) 
-      lyr_name <- paste0("\\b[.]", lyr_no, "\\b") # exact match
+      lyr_name <- paste0("_", lyr_no, "$") # Exact match - ends w/ lyr no
       brk_sub <- brick(brk_fl)[[grep(lyr_name, names(brick(brk_fl)))]]
       
       # In order for all completed generations to show up in legend key,
@@ -1979,8 +1986,7 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
         maxgens <- data.frame(as(brk_sub2, "SpatialPixelsDataFrame")) %>%
           dplyr::select(-x, -y) %>% 
           gather() %>% # Combine columns and make column of generation data
-          mutate(gen = str_split_fixed(key, pattern = "_", 2)[,2]) %>% 
-          mutate(gen = sub('\\..*', '', gen)) %>%
+          mutate(gen = str_split_fixed(key, pattern = "_", 3)[,2]) %>% 
           filter(value > 0) %>% # Remove 0 values (gens not present)
           distinct(gen) %>% 
           arrange %>% # Returns the gen(s) present on date
@@ -1995,11 +2001,10 @@ foreach(i = 1:length(NumGen_mrgd_fls), .packages = pkgs,
       #j <- 1
       for (lyr in 1:nlayers(brk_sub)) {
         df <- ConvDF(brk_sub[[lyr]])
-        # Extract generation number from layers for that date
-        lyr_name <- sub('\\..*', '', names(brk_sub[[lyr]]))
-        gen <- str_split_fixed(lyr_name, pattern = "_", 2)[,2]
-        df$gen <- as.numeric(sub("*\\.[0-9]", "", gen))
-
+        # Extract generation number from layers for that date - add to dataframe
+        lyr_name <- sub("^[^_]*_", "", names(brk_sub[[lyr]])) 
+        gen <- str_split_fixed(names(brk_sub[[lyr]]), pattern = "_", 3)[,2]
+        df$gen <- as.numeric(gen)
         # Don't include data if all values are >= 0 - don't want them to be 
         # in legend key
         if (any(df$value > 0)) {
@@ -2197,8 +2202,8 @@ corrected_NumGen <- foreach(d = 1:length(dats2), .packages = pkgs,
     
     # Which layer # in the stack corresponds to the date? Then subset brick
     # and replace all non-zero values w/ 1, and 0 values with NA
-    lyr_no <- which(dats2 == dats2[d]) 
-    lyr_name <- paste0("\\b", lyr_no, "$\\b") # regex for getting exact match
+    lyr_no <- which(dats2 == dats2[d])
+    lyr_name <- paste0("_", lyr_no, "$") # Exact match - ends w/ lyr no
     sub1 <- raster::stack(NumGen_all_fl)[[grep(lyr_name, all_lyr_names)]]
     sub1[sub1 > 0] <- 1 
     sub1[sub1 == 0] <- NA
@@ -2209,8 +2214,8 @@ corrected_NumGen <- foreach(d = 1:length(dats2), .packages = pkgs,
     
     # Search for each of those gens in the stack and combine them
     # The order matters here, genA must be first layer
-    sub1A <- raster::subset(sub1, grep(paste0(genA, "[.]"), names(sub1)))
-    sub1B <- raster::subset(sub1, grep(paste0(genB, "[.]"), names(sub1)))
+    sub1A <- raster::subset(sub1, grep(paste0(genA, "_"), names(sub1)))
+    sub1B <- raster::subset(sub1, grep(paste0(genB, "_"), names(sub1)))
     sub2 <- raster::stack(sub1A, sub1B)
     rm(sub1A, sub1B) # Free up memory
     
@@ -2293,7 +2298,7 @@ mskGenAdult <- foreach(gen = 0:maxgens,
      #print(gen)
     # Extract data for each generation
     NumGen_msk <- raster::subset(brick("NumGen_all_merged.grd"),
-    grep(paste0("Gen_", gen, "[.]"),
+    grep(paste0("Gen_", gen, "_"),
          names(brick("NumGen_all_merged.grd"))))
     
     # Mask out areas in adults raster that do not belong to the gen. of interest
@@ -2365,7 +2370,6 @@ RegCluster(round(ncores/6))
 Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
                                 .packages = pkgs, .inorder = TRUE) %:%
   foreach(d = dats2, .packages = pkgs, .inorder = TRUE) %dopar% {
-
 #for (j in 1:length(Adult_byGen_fls)) {
  fl_type <- paste0(names(Adult_byGen_fls[j]))
    #for (d in dats2) {
@@ -2374,7 +2378,7 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
 
     # Which layer # in the stack corresponds to the date? 
     lyr_no <- which(dats2 == d) 
-    lyr_name <- paste0("\\b", lyr_no, "$\\b") # regex for getting exact match
+    lyr_name <- paste0("_", lyr_no, "$")
     
     # Subset the brick by the layer name (date)
     # Only include the layer if there are other data besides NA
@@ -2385,7 +2389,10 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
     brk_sub <- brick()
     
     for (f in 1:length(fls)) {
-      brk <- brick(fls[[f]])[[grep(lyr_name, names(brick(fls[[f]])))]]
+      brk <- brick(fls[[f]])
+      # Why does the period get added in some versions of R pkgs and not others??!!!
+      names(brk) <- sub("[.]", "_", names(brk))
+      brk <- brk[[grep(lyr_name, names(brk))]]
       # Bug in "ConvDF" requires more than 1 row of data for older versions
       # of spatial packages (either sp, raster, or both?)
       # Updated bug fix on 9/21/22
@@ -2394,12 +2401,9 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
         #if (all(freq$value <= 0) & freq$count > 1) {
         # If only a single value is present in the layer, check that it occurs in
         # more than 1 cell
-        if (nrow(freq) == 1 & freq$count > 1) {
+        if (nrow(freq) >= 1 & any(freq$count > 1)) {
           brk_sub <- addLayer(brk_sub, brk)
-          # Not sure if this is needed....
-        } else if (nrow(freq) > 1 & any(freq$count > 1)) { 
-          brk_sub <- addLayer(brk_sub, brk)
-        }
+        } 
       }
     }
     
@@ -2408,10 +2412,11 @@ Adult_byGen_sum_maps <- foreach(j = 1:length(Adult_byGen_fls),
     df_list <- list()
     for (i in 1:nlayers(brk_sub)) {
       r <- brk_sub[[i]]
-      gen <- unlist(str_split(names(r), paste0("_Gen|[.]")))[2]
-      #print(gen)
+      gen <- str_subset(unlist(str_split(names(r), "_")), "Gen")
+      gen <- as.numeric(str_extract_all(gen, "\\d+"))
+      print(gen)
       lyr_df <- ConvDF(r) # convert raster to a data frame
-      lyr_df$gen <- as.numeric(gen)
+      lyr_df$gen <- gen
       colnames(lyr_df)[1] <- "value"
       df_list[[i]] <- lyr_df # add to the list 
     }

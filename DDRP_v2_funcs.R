@@ -4,6 +4,9 @@
 # needed to run the program.
 # 
 # Log of most recent changes -----
+# 4/19/24: Added Hawaii to extents, and fixed error in adult PEM labels when
+# OW stage is egg ("a0" was skipped, and instead called "a1") in Daily Loop.
+# Also added bg = "white" to ggsave for the PlotMap function.
 # 10/2/23: Clarified that "obligate_diapause" parameter cannot be in a parameter
 # file unless the species actually does have obligate diapause. This should maybe
 # be changed (i.e., have it all parameter files) but would require changing all 
@@ -55,6 +58,8 @@ Assign_extent <- function(region_param = paste0(region_param)) {
                 "WEST"         = extent(-125.0, -102, 31.1892, 49.4),
                 "EAST"         = extent(-106.8, -66.5, 24.54, 49.4),
                 "MIDWEST"      = extent(-104.2, -87, 30, 49.3),
+                # Daymet - midwest and northeast plus some of Canada
+                "NORTHPLUS"    = extent(-106, -64, 36, 52),
                 "NORTHWEST"    = extent(-125.1, -103.8, 40.6, 49.15),
                 "SOUTHWEST"    = extent(-124.6, -101.5, 31.2, 42.3),
                 "SOUTHCENTRAL" = extent(-83.6, -78.3, 31.8, 35.3),
@@ -74,6 +79,7 @@ Assign_extent <- function(region_param = paste0(region_param)) {
                 "DL"           = extent(-76.1392, -74.1761, 38.3508, 39.9919),
                 "FL"           = extent(-87.8064, -79.9003, 24.54, 31.1214),
                 "GA"           = extent(-85.7850, -80.5917, 30.1767, 35.1594),
+                "HI"           = extent(-178.335, -154.8068, 18.910, 28.402),
                 "IA"           = extent(-96.8617, -89.9697, 40.1147, 43.7353),
                 "ID"           = extent(-117.3917, -110.6167, 41.4500, 49.15),
                 "IL"           = extent(-91.5897, -87.0461, 36.8903, 42.6375),
@@ -595,8 +601,8 @@ DailyLoop <- function(cohort, tile_num, template) {
             # file - this is for DDRP v2)
             PEMa0 <- Cond(PEMa0 == 0 & NumGen == 0 & (DDaccum >= OWEventDD), 
                           d * (Lifestage == which(stgorder == "OA")), PEMa0) 
-            } else if (owstage %in% c("OL", "OP")) {
-            # If owstage = larvae or pupae, then adults of the OW gen will 
+            } else if (owstage %in% c("OE", "OL", "OP")) {
+            # If owstage = egg, larvae, or pupae, then adults of the OW gen will 
             # have to go through full development 
             PEMa0 <- Cond(PEMa0 == 0 & NumGen == 0 & (DDaccum >= adultEventDD), 
                           d * (Lifestage == which(stgorder == "A")), PEMa0) 
@@ -1855,7 +1861,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
   tryCatch(
     {
       suppressMessages(ggsave(p, file = paste0(outfl, "_", d, ".png"), 
-                              height = asp * 7, units = c('in'), dpi = 300))
+                              height = asp * 7, units = c('in'), dpi = 300, bg = "white"))
       cat(paste0("\n\nSaving summary map: ", outfl, "_", d, ".png\n"),  
           str_wrap(paste0(log_capt, "\n"), width = 80, exdent = 2), sep = "",
           file = Model_rlogging, append = TRUE) # print progress in log file

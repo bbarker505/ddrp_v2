@@ -1,0 +1,51 @@
+# Params and values for 
+# SLF, Spotted lanternfly, Lycorma delicatula - in Degs Celsius (C)
+# model documentation at: http://uspest.org/wea/SLF_model_analysis.pdf
+# Researcher: Len Coop and Brittany S. Barker 
+# Last updated Apr 24 2024 for DDRP v2 (cohorts)
+  fullname   <- "Spotted lanternfly"
+  pestof     <- "wine grapes, tree fruits, black walnut, willow, etc."
+  stgorder   <- c("OE","L","P","A","E") #  stgorder changed to 1, 2, 3, 4, 5 
+  owstage    <- "OE"  # OE means ow as egg
+  eggLDT     <- 10
+  eggUDT     <- 35
+  larvaeLDT  <- 10
+  larvaeUDT  <- 35
+  pupaeLDT   <- 10
+  pupaeUDT   <- 35
+  adultLDT   <- 10
+  adultUDT   <- 35
+  eggDD      <- 202
+  larvaeDD   <- 890 # L1-L4 nymphs - calibration II
+  pupDD      <- 630 # Adult pre-OV - calib. III 
+  adultDD    <- 146 # 1st-OV to 50% OV
+  obligate_diapause <- 1  # added for SLF 
+  # full generation time: 
+  OWeggDD <- 202 # OW stage requires at least 202 DD to begin hatch   
+  calctype   <- "triangle"  # triangle similar to sine curve
+  # Pest Event Maps (PEMs) must be turned on as a runtime param for these to get used:
+  PEMnumgens       <- 1     # create PEMS for up to this many generations (max is 4)
+  eggEventDD       <- 100   # PEMs for egg hatch is at end of stage
+  eggEventLabel    <- "diapausing eggs" # Label for PEM egg stage
+  larvaeEventDD    <- 442 # PEMs for end of 1st & 2nd nymphs denotes mid-nymphal development
+  larvaeEventLabel <- "nymphs halfway developed" # Label for PEM larvae stage 
+  pupaeEventDD     <- 1  # beginning of pupae is actually first adults
+  pupaeEventLabel  <- "first adults"  # Label for PEM pupal stage
+  adultEventDD     <- 1   # PEMs for adult (egg-laying) stage (1st oviposition)
+  adultEventLabel  <- "first egg laying" # Label for PEM adult stage
+  OWEventP         <- 1  # PEMs for OWeggs is 100% into stage (end of stage)
+  OWEventLabel     <- "egg hatch" # Label for PEM OWegg stage  
+# Exclusion Maps must be turned on as a runtime param for these to get used:
+  coldstress_threshold  <- -16
+  coldstress_units_max1 <- 300 # use for cold stress units: ColdDD limit; so "most" all die once reached
+  coldstress_units_max2 <- 475 # use for cold stress units: ColdDD limit; so all die once reached
+  heatstress_threshold   <- 37
+  heatstress_units_max1  <- 115 # use for heat stress units: HeatDD limit; so "most" all die once reached
+  heatstress_units_max2  <- 175 # use for heat stress units: HeatDD limit; so all die once reached  
+# OW stage emergence parameters (DDRP v2 only)
+  distro_mean <- 190
+  distro_var <- 15000
+  xdist1 <- 135
+  xdist2 <- 360
+  distro_shape <- "normal"
+# END
