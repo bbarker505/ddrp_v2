@@ -1,10 +1,12 @@
+# IMPORTANT
+
+A new version of DDRP that uses modern R packages for geospatial
+operations, [DDRP v3](http://github.com/bbarker505/ddrp_v3), has
+superseded DDRP v2. The `raster` package used in DDRP v2 will not longer
+be updated and maintained, which may eventually lead to issues with
+running the script.
+
 # An introduction to DDRP
-
-<img src="https://github.com/bbarker505/ddrp_v2/blob/master/images/DDRP_logo2.png" width="300"/> <img src="https://github.com/bbarker505/ddrp_v2/blob/master/images/OSU_IPMC_horizontal_2C_O_over_B.png" width="300"/> 
-
-👥 Brittany Barker, Len Coop, Tyson Wepprich, Gericke Cook, and Dan Upper  
-
-Questions? 📧 bbarker505@gmail.com or brittany.barker@oregonstate.edu  
 
 Invasive pests present a significant threat to agricultural production
 in the United States, yet decision support tools that can accurately
@@ -15,16 +17,20 @@ updated forecasts of the potential distribution (risk of establishment)
 and timing of seasonal activities (phenology) of pests [(Barker et
 al. 2020)](https://doi.org/10.1371/journal.pone.0244005). Currently we
 are using DDRP to produce regularly updated (every three days) forecasts
-for 16 high-risk pest insects for the USDA APHIS Cooperative
+for 15 high-risk pest insects for the USDA APHIS Cooperative
 Agricultural Pest Survey (CAPS) program, available at
 [USPest.org](http://uspest.org/CAPS). The program has also been adapted
 to predict the phenology and voltinism (number of generations per year)
 of three biological control insects that have photoperiod-cued diapause
-[(Grevstad et al. 2022)](https://doi.org/10.1002/eap.2557), also available at
+(Grevstad et al. in press), also available at
 [USPest.org](http://uspest.org/dd/dodmaps).
 
-![Model
-overview](https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.png?raw=true)
+<figure>
+<img
+src="https://github.com/bbarker505/ddrp_v2/blob/master/images/model_overview.png?raw=true"
+alt="Model overview" />
+<figcaption aria-hidden="true">Model overview</figcaption>
+</figure>
 
 # Inputs and outputs
 
@@ -103,24 +109,26 @@ support rather than more complex research-only models
 # Example outputs
 
 The movie below shows DDRP outputs of the emergence of overwintered
-adults of emerald ash borer, *Agrilus planipennis*, over the course of 2022. The potential distribution is defined as areas not excluded by severe or moderate climate stress (excl.-sev and excl.-mod, respectively). 
+adults of emerald ash borer over the course of 2021. Areas where heat or
+cold stress has exceeded the stress limits for the species are predicted
+to be excluded from the potential distribution.
 
-![Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2022_Adults.png)
+<figure>
+<img
+src="https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2021.gif?raw=true"
+alt="Movie" />
+<figcaption aria-hidden="true">Movie</figcaption>
+</figure>
 
 Another way to look at this (mostly) same information is with a
-phenological event map for the emergence of overwintered emerald ash borer adults, below.  
+phenological event map, below.
 
-![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_Avg_PEMp0Excl2_20221231.png)
-
-Generation and stage maps for emerald ash borer in 2022 in the movie below depict the expected life stage of any given generation over the year.  
-
-![Movie](https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_2022_StageCount.png)
-
-Maps of voltinism (number of generations per year) can provide insight into expected pest pressure over the year. The maps below shows expected voltinism for light brown apple moth, *Epiphyas postvittana*, a major pest of economically important fruits including apple, pear, orange, and grape. The first map depicts the potential distribution as areas not excluded by severe climate stress, whereas the second maps depicts it as areas not excluded by severe or moderate climate stress.
-
-![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/LBAM_NumGen_Excl1_20221231.png?raw=TRUE)
-
-![PEM](https://github.com/bbarker505/ddrp_v2/blob/master/images/LBAM_NumGen_Excl2_20221231.png?raw=TRUE)
+<figure>
+<img
+src="https://github.com/bbarker505/ddrp_v2/blob/master/images/EAB_Avg_PEMp0Excl2_20211231.png?raw=TRUE"
+alt="PEM" />
+<figcaption aria-hidden="true">PEM</figcaption>
+</figure>
 
 # Acknowledgements
 
@@ -143,6 +151,6 @@ collaborators. Available
 [here](https://github.com/bbarker505/ddrp_v2/blob/master/DDRP_user_guide_and_platform_requirements_V4.pdf).
 
 Grevstad, F. G., T. Wepprich, B. S. Barker, L. B. Coop, R. Shaw, and R.
-S. Bourchier. 2022. Combining photoperiod and thermal responses to
+S. Bourchier. In press. Combining photoperiod and thermal responses to
 predict phenological mismatch for introduced insects. Ecological
-Applications. e2557. <https://doi.org/10.1002/eap.2557>.
+Applications.
